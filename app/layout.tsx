@@ -11,13 +11,13 @@ export const metadata: Metadata = {
   applicationName: "Comrade Hub Kenya",
   authors: [{ name: "Comrade Hub Kenya" }],
   keywords: ["Kenya", "university", "students", "gigs", "campus", "comrade"],
-  themeColor: "#0B6B3A",
   icons: {
     icon: "/favicon.svg",
   },
 };
 
 export const viewport: Viewport = {
+  themeColor: "#0B6B3A",
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,

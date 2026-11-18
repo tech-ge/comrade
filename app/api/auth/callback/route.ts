@@ -1,2 +1,7 @@
 import { NextResponse } from "next/server";
-export async function GET() { return NextResponse.redirect(new URL("/posts", process.env.NEXT_PUBLIC_APP_URL)); }
+
+export const dynamic = "force-dynamic";
+
+export async function GET(req: Request) {
+  return NextResponse.redirect(new URL("/posts", req.url));
+}
