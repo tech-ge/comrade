@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import type { SetAllCookies } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 export const supabaseServer = () => {
@@ -8,9 +9,12 @@ export const supabaseServer = () => {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get: (n: string) => store.get(n)?.value,
-        set: (n: string, v: string, o?: any) => store.set(n, v, o),
-        remove: (n: string, o?: any) => store.delete(n),
+        getAll: () => store.getAll(),
+        setAll: (cookieValues: Parameters<SetAllCookies>[0]) => {
+          cookieValues.forEach(({ name, value, options }) => {
+            store.set(name, value, options);
+          });
+        },
       },
     }
   );

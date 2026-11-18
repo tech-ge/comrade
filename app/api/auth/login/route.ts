@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { createClient } from "@supabase/supabase-js";
+import { supabaseServer } from "@/lib/supabase/server";
 
 export async function POST(req: Request) {
   const { adm_number, password } = await req.json();
@@ -26,33 +26,15 @@ export async function POST(req: Request) {
     );
   }
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { persistSession: false } }
-  );
+  const supabase = supabaseServer();
+  const { error: authErr } = await supabase.auth.signInWithPassword({
+    email: user.email,
+    password,
+  });
 
-  const { data: authData, error: authErr } =
-    await supabase.auth.signInWithPassword({ email: user.email, password });
-
-  if (authErr || !authData.session) {
+  if (authErr) {
     return NextResponse.json({ error: "Invalid ADM number or password" }, { status: 401 });
   }
 
-  const res = NextResponse.json({ ok: true });
-  res.cookies.set("sb-access-token", authData.session.access_token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: authData.session.expires_in,
-    path: "/",
-  });
-  res.cookies.set("sb-refresh-token", authData.session.refresh_token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 30,
-    path: "/",
-  });
-  return res;
+  return NextResponse.json({ ok: true });
 }
