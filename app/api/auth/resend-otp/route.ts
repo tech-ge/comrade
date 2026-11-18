@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getSchoolEmailDomain } from "@/lib/auth/school-email";
 
 export async function POST(req: Request) {
   const { email } = await req.json();
-  if (!email) return NextResponse.json({ error: "Email required" }, { status: 400 });
+  const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+  const domain = getSchoolEmailDomain(normalizedEmail);
+  if (!domain) {
+    return NextResponse.json({ error: "Gmail, Yahoo, and Outlook addresses are not accepted." }, { status: 400 });
+  }
+
   const admin = supabaseAdmin();
   const { error } = await admin.auth.signInWithOtp({
-    email,
+    email: normalizedEmail,
     options: { shouldCreateUser: true },
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

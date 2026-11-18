@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { generatePublicId } from "@/lib/utils/public-id";
+import { getSchoolEmailDomain } from "@/lib/auth/school-email";
 
 export async function POST(req: Request) {
   const sb = supabaseServer();
@@ -11,15 +12,27 @@ export async function POST(req: Request) {
   const fd = await req.formData();
   const admin = supabaseAdmin();
 
-  const email = String(fd.get("email") || user.email || "").toLowerCase();
+  const email = String(fd.get("email") || user.email || "").trim().toLowerCase();
+  const domain = getSchoolEmailDomain(email);
   const adm = String(fd.get("adm_number") || "").trim();
   const fullName = String(fd.get("full_name") || "").trim();
+  const universityId = String(fd.get("university_id") || "").trim();
   const idPhoto = fd.get("id_photo") as File | null;
+  if (email !== user.email?.toLowerCase()) {
+    return NextResponse.json({ error: "The email must match the address verified during signup." }, { status: 400 });
+  }
+  if (!domain) {
+    return NextResponse.json(
+      { error: "Enter a valid email address. Gmail, Yahoo, and Outlook addresses are not accepted." },
+      { status: 400 }
+    );
+  }
   if (!idPhoto) return NextResponse.json({ error: "ID photo required" }, { status: 400 });
 
-  const domain = email.split("@")[1];
-  const { data: uni } = await admin.from("universities").select("id").eq("email_domain", domain).single();
-  if (!uni) return NextResponse.json({ error: "Unknown school" }, { status: 400 });
+  const { data: uni, error: universityError } = await admin
+    .from("universities").select("id").eq("id", universityId).maybeSingle();
+  if (universityError) return NextResponse.json({ error: "Could not look up the selected university" }, { status: 500 });
+  if (!uni) return NextResponse.json({ error: "Select a valid university" }, { status: 400 });
 
   // Move selfie from pending folder
   const safeKey = email.replace(/[^a-z0-9]/gi, "_");

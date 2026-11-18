@@ -1,26 +1,15 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getSchoolEmailDomain } from "@/lib/auth/school-email";
 
 export async function POST(req: Request) {
   const { email } = await req.json();
-  const domain = String(email).split("@")[1]?.toLowerCase();
+  const domain = getSchoolEmailDomain(email);
   if (!domain) {
-    return NextResponse.json({ error: "Invalid email" }, { status: 400 });
-  }
-
-  const sb = supabaseAdmin();
-  const { data, error } = await sb
-    .from("universities")
-    .select("id, name")
-    .eq("email_domain", domain)
-    .maybeSingle();
-
-  if (error || !data) {
     return NextResponse.json(
-      { error: "Use a valid school email (e.g., you@students.jkuat.ac.ke)" },
+      { error: "Enter a valid email address. Gmail, Yahoo, and Outlook addresses are not accepted." },
       { status: 400 }
     );
   }
 
-  return NextResponse.json({ ok: true, university: data });
+  return NextResponse.json({ ok: true, domain });
 }

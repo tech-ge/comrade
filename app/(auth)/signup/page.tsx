@@ -13,14 +13,17 @@ export default function SignupPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [counties, setCounties] = useState<Array<{ id: number; name: string }>>([]);
+  const [universities, setUniversities] = useState<Array<{ id: string; name: string }>>([]);
   useEffect(() => {
     fetch("/api/counties").then(r => r.json()).then(d => setCounties(d.data || [])).catch(() => {});
+    fetch("/api/universities").then(r => r.json()).then(d => setUniversities(d.data || [])).catch(() => {});
   }, []);
 
   // Step 1
   const [adm, setAdm] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [universityId, setUniversityId] = useState("");
   const [selfie, setSelfie] = useState<File | null>(null);
   const [selfiePreview, setSelfiePreview] = useState<string>("");
 
@@ -48,12 +51,13 @@ export default function SignupPage() {
   async function step1(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (!adm || !fullName || !email || !selfie) { setError("All fields are required"); return; }
+    if (!adm || !fullName || !email || !universityId || !selfie) { setError("All fields are required"); return; }
     setLoading(true);
     const fd = new FormData();
     fd.append("adm_number", adm);
     fd.append("full_name", fullName);
     fd.append("email", email);
+    fd.append("university_id", universityId);
     fd.append("selfie", selfie);
     const res = await fetch("/api/auth/init-signup", { method: "POST", body: fd });
     const data = await res.json();
@@ -92,6 +96,7 @@ export default function SignupPage() {
     fd.append("email", email);
     fd.append("adm_number", adm);
     fd.append("full_name", fullName);
+    fd.append("university_id", universityId);
 
     const res = await fetch("/api/auth/finish-signup", { method: "POST", body: fd });
     const data = await res.json();
@@ -132,8 +137,18 @@ export default function SignupPage() {
               <input className="input" value={fullName} onChange={e => setFullName(e.target.value)} required />
             </div>
             <div>
-              <label className="text-sm font-medium mb-1.5 block">School email</label>
-              <input className="input" type="email" placeholder="you@students.jkuat.ac.ke" value={email} onChange={e => setEmail(e.target.value)} required />
+              <label className="text-sm font-medium mb-1.5 block">Email</label>
+              <input className="input" type="email" placeholder="student@your-email-provider.com" value={email} onChange={e => setEmail(e.target.value)} required />
+              <p className="text-xs text-muted mt-1">Gmail, Yahoo, and Outlook addresses are not accepted. Other email providers are allowed.</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">University</label>
+              <select className="input" value={universityId} onChange={e => setUniversityId(e.target.value)} required>
+                <option value="">Select your university</option>
+                {universities.map((university) => (
+                  <option key={university.id} value={university.id}>{university.name}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="text-sm font-medium mb-1.5 block">Selfie (verification only)</label>
