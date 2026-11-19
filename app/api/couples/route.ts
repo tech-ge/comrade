@@ -17,6 +17,9 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
+  if (typeof body.description !== "string" || !body.description.trim()) return NextResponse.json({ error: "Describe who you are hoping to meet." }, { status: 400 });
+  if (!["male", "female"].includes(body.poster_gender) || !["male", "female"].includes(body.looking_for_gender)) return NextResponse.json({ error: "Choose valid gender options." }, { status: 400 });
+  if (!["country", "county", "school"].includes(body.target_scope)) return NextResponse.json({ error: "Choose a valid audience." }, { status: 400 });
   const { data: profile } = await sb.from("users").select("university_id").eq("id", user.id).single();
   if (!profile) return NextResponse.json({ error: "Profile incomplete" }, { status: 400 });
 

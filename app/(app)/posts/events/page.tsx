@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 export default function EventsPage() {
-  const [body, setBody] = useState("");
+  const [form, setForm] = useState({ title: "", date: "", time: "", location: "", details: "" });
   const [message, setMessage] = useState("");
 
   async function submit(event: React.FormEvent) {
@@ -11,7 +11,12 @@ export default function EventsPage() {
     const response = await fetch("/api/content", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "story", body, is_event: true, target_scope: "school" }),
+      body: JSON.stringify({
+        type: "story",
+        body: `${form.title.trim()}\nWhen: ${form.date} at ${form.time}\nWhere: ${form.location.trim()}\n\n${form.details.trim()}`,
+        is_event: true,
+        target_scope: "school",
+      }),
     });
     const data = await response.json();
     setMessage(response.ok ? "Event posted." : data.error || "Failed");
@@ -19,10 +24,14 @@ export default function EventsPage() {
 
   return (
     <main className="max-w-2xl mx-auto px-4 pt-4">
-      <h1 className="text-2xl font-bold mb-3">Post an event</h1>
+      <h1 className="text-2xl font-bold mb-3">Schedule an event</h1>
       <form onSubmit={submit} className="card space-y-3">
-        <textarea className="input" rows={5} value={body} onChange={(event) => setBody(event.target.value)} placeholder="Event details" required />
-        <button className="btn-primary w-full">Post event</button>
+        <input className="input" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="Event name" required />
+        <input className="input" type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} required />
+        <input className="input" type="time" value={form.time} onChange={(event) => setForm({ ...form, time: event.target.value })} required />
+        <input className="input" value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} placeholder="Location" required />
+        <textarea className="input" rows={4} value={form.details} onChange={(event) => setForm({ ...form, details: event.target.value })} placeholder="More details about the event" required />
+        <button className="btn-primary w-full">Schedule event</button>
         {message && <p className="text-sm">{message}</p>}
       </form>
     </main>

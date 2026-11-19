@@ -21,6 +21,10 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
+  if (typeof body.title !== "string" || !body.title.trim() || typeof body.description !== "string" || !body.description.trim() || typeof body.private_contact !== "string" || !body.private_contact.trim()) {
+    return NextResponse.json({ error: "Title, description, and contact details are required." }, { status: 400 });
+  }
+  if (!["school", "country"].includes(body.scope)) return NextResponse.json({ error: "Choose a valid audience for this gig." }, { status: 400 });
   const cleaned = stripContacts(body.description || "");
   if (cleaned !== body.description) {
     return NextResponse.json(

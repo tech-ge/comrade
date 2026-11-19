@@ -37,7 +37,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <Link className="sidebar-compose" href="/posts/stories">
+        <Link className="sidebar-compose" href="/posts/new">
           <Plus size={19} />
           <span>Create a post</span>
         </Link>

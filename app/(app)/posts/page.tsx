@@ -25,7 +25,7 @@ export default async function PostsPage() {
           <p className="feed-eyebrow">YOUR CAMPUS COMMUNITY</p>
           <h1 className="text-2xl font-bold">Posts</h1>
         </div>
-        <Link href="/posts/stories" className="feed-create-link">Create post</Link>
+        <Link href="/posts/new" className="feed-create-link">Create post</Link>
       </header>
       <div className="feed-tabs">
         <span className="feed-tab-active">All</span>
