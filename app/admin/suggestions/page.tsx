@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { SuggestionReply } from "@/components/admin/AdminControl";
 
 export const dynamic = "force-dynamic";
 
@@ -19,15 +20,14 @@ export default async function AdminSuggestions() {
     .limit(100);
 
   return (
-    <main className="max-w-4xl mx-auto px-4 pt-6">
-      <h1 className="text-2xl font-bold mb-4">Suggestions</h1>
+    <main className="admin-page">
+      <header className="admin-section-header"><div><p className="admin-eyebrow">MEMBER FEEDBACK</p><h1>Suggestions</h1><p className="admin-subtitle">Respond to ideas and questions from the community.</p></div><span className="admin-result-count">{suggestions?.length || 0} messages</span></header>
       {(suggestions || []).length === 0 ? <p className="text-brand-gray">No suggestions.</p> : (
-        <div className="space-y-2">
+        <div className="admin-record-list">
           {suggestions?.map((suggestion) => (
-            <div className="card" key={suggestion.id}>
-              <p>{suggestion.body}</p>
-              {suggestion.admin_reply && <p className="text-sm text-brand-green mt-2">Reply: {suggestion.admin_reply}</p>}
-              <p className="text-xs text-brand-gray mt-1">{new Date(suggestion.created_at).toLocaleString()}</p>
+            <div className="admin-record admin-suggestion" key={suggestion.id}>
+              <div className="admin-suggestion-copy"><div className="admin-badges"><span className={`admin-badge ${suggestion.admin_reply ? "green" : "amber"}`}>{suggestion.admin_reply ? "Replied" : "Needs reply"}</span></div><p className="admin-record-title">{suggestion.body}</p><p className="admin-record-meta">Received {new Date(suggestion.created_at).toLocaleString()}</p></div>
+              <SuggestionReply id={suggestion.id} initialValue={suggestion.admin_reply || ""} />
             </div>
           ))}
         </div>

@@ -19,10 +19,16 @@ export default async function PostsPage() {
     .limit(30);
 
   return (
-    <main className="max-w-2xl mx-auto px-4 pt-4">
-      <h1 className="text-2xl font-bold mb-3">Posts</h1>
-      <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
-        <span className="px-3 py-1 rounded-full bg-brand-green text-white text-sm shrink-0">All</span>
+    <main className="feed-page">
+      <header className="feed-header">
+        <div>
+          <p className="feed-eyebrow">YOUR CAMPUS COMMUNITY</p>
+          <h1 className="text-2xl font-bold">Posts</h1>
+        </div>
+        <Link href="/posts/stories" className="feed-create-link">Create post</Link>
+      </header>
+      <div className="feed-tabs">
+        <span className="feed-tab-active">All</span>
         <Link href="/posts/events" className="px-3 py-1 rounded-full bg-brand-gray-light text-sm shrink-0">Events</Link>
         <Link href="/posts/stories" className="px-3 py-1 rounded-full bg-brand-gray-light text-sm shrink-0">Stories</Link>
         <Link href="/posts/anonymous" className="px-3 py-1 rounded-full bg-brand-gray-light text-sm shrink-0">Anonymous</Link>
@@ -31,10 +37,10 @@ export default async function PostsPage() {
       {(stories || []).length === 0 && (
         <p className="text-brand-gray text-sm">No posts yet. Be the first.</p>
       )}
-      <ul className="space-y-3">
+      <ul className="feed-list">
         {(stories || []).map(s => (
-          <li key={s.id} className="card">
-            <p className="text-xs text-brand-gray mb-1">
+          <li key={s.id} className="card feed-card">
+            <p className="feed-meta">
               {s.is_event ? "EVENT · " : ""}{s.target_scope} · {new Date(s.created_at).toLocaleDateString()}
             </p>
             <p className="whitespace-pre-wrap">{s.body}</p>

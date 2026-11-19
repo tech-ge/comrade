@@ -1,10 +1,8 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [adm, setAdm] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -40,8 +38,7 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Login failed"); return; }
-      router.replace(data.role === "admin" ? "/admin/dashboard" : "/posts");
-      router.refresh();
+      window.location.assign("/api/auth/redirect");
     } catch {
       setError("Could not reach the server. Check your connection and try again.");
     } finally {

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { AdminControl } from "@/components/admin/AdminControl";
 
 export const dynamic = "force-dynamic";
 
@@ -19,15 +20,14 @@ export default async function AdminReports() {
     .limit(100);
 
   return (
-    <main className="max-w-4xl mx-auto px-4 pt-6">
-      <h1 className="text-2xl font-bold mb-4">Reports</h1>
+    <main className="admin-page">
+      <header className="admin-section-header"><div><p className="admin-eyebrow">COMMUNITY SAFETY</p><h1>Reports</h1><p className="admin-subtitle">Recent reports submitted by community members.</p></div><span className="admin-result-count">{reports?.length || 0} reports</span></header>
       {(reports || []).length === 0 ? <p className="text-brand-gray">No reports.</p> : (
-        <div className="space-y-2">
+        <div className="admin-record-list">
           {reports?.map((report) => (
-            <div className="card" key={report.id}>
-              <p className="font-semibold">{report.target_type} report</p>
-              <p className="text-sm">{report.reason}</p>
-              <p className="text-xs text-brand-gray mt-1">{new Date(report.created_at).toLocaleString()}</p>
+            <div className="admin-record" key={report.id}>
+              <div className="admin-record-main"><span className="admin-stat-icon amber"><span className="admin-type-mark">!</span></span><div><div className="admin-badges"><span className="admin-badge amber">{report.target_type}</span></div><p className="admin-record-title">{report.reason}</p><p className="admin-record-meta">Submitted {new Date(report.created_at).toLocaleString()} · Content ID {report.target_id}</p></div></div>
+              <div className="admin-record-actions"><AdminControl action="dismiss_report" id={report.id} label="Dismiss report" tone="danger" confirmText="Dismiss this report? It will be removed from the reports list." /></div>
             </div>
           ))}
         </div>
