@@ -2,6 +2,30 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
+class PaystackRequestError extends Error {
+  constructor(message: string, readonly outcomeUnknown = false) { super(message); }
+}
+
+async function paystackRequest<T = Record<string, unknown>>(path: string, method = "GET", body?: Record<string, unknown>): Promise<T> {
+  const secret = process.env.PAYSTACK_SECRET_KEY;
+  if (!secret) throw new Error("PAYSTACK_SECRET_KEY is not configured");
+  let response: Response;
+  try {
+    response = await fetch(`https://api.paystack.co${path}`, {
+      method,
+      headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+  } catch {
+    throw new PaystackRequestError("Could not reach Paystack; transfer result is unknown", true);
+  }
+  let data: { status?: boolean; message?: string; data?: unknown };
+  try { data = await response.json(); }
+  catch { throw new PaystackRequestError("Paystack response could not be read", true); }
+  if (!response.ok || !data.status) throw new PaystackRequestError(data.message || "Paystack request failed");
+  return data.data as T;
+}
+
 export async function POST(req: Request) {
   const sb = supabaseServer();
   const { data: { user } } = await sb.auth.getUser();
@@ -41,10 +65,110 @@ export async function POST(req: Request) {
   } else if (action === "reply_suggestion") {
     if (!String(value || "").trim()) return NextResponse.json({ error: "Reply cannot be empty" }, { status: 400 });
     ({ error } = await admin.from("suggestions").update({ admin_reply: String(value).trim(), replied_at: new Date().toISOString() }).eq("id", id));
-  } else if (action === "approve_withdrawal" || action === "reject_withdrawal") {
-    ({ error } = await admin.from("wallet_transactions").update({
-      status: action === "approve_withdrawal" ? "success" : "failed",
-    }).eq("id", id).eq("type", "withdrawal").eq("status", "pending"));
+  } else if (action === "approve_withdrawal") {
+    const { data: withdrawal, error: withdrawalError } = await admin.from("wallet_transactions")
+      .select("id, wallet_id, amount_ksh, paystack_ref, status, withdrawal_details")
+      .eq("id", id).eq("type", "withdrawal").maybeSingle();
+    if (withdrawalError) return NextResponse.json({ error: withdrawalError.message }, { status: 500 });
+    if (!withdrawal || withdrawal.status !== "pending") return NextResponse.json({ error: "This withdrawal is no longer awaiting approval" }, { status: 409 });
+
+    const { error: reserveError } = await admin.rpc("reserve_wallet_withdrawal", { p_transaction_id: id, p_admin_id: user.id });
+    if (reserveError) return NextResponse.json({ error: reserveError.message }, { status: 400 });
+
+    const details = withdrawal.withdrawal_details as { payout_method?: string; account_name?: string; account_number?: string; mobile_number?: string; bank_code?: string };
+    const mobile = details.payout_method === "mpesa";
+    let recipient: { recipient_code?: string };
+    try {
+      recipient = await paystackRequest<{ recipient_code?: string }>("/transferrecipient", "POST", {
+        type: mobile ? "mobile_money" : "kepss",
+        name: details.account_name,
+        account_number: mobile ? details.mobile_number : details.account_number,
+        bank_code: mobile ? "MPESA" : details.bank_code,
+        currency: "KES",
+      });
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : "Could not create the Paystack recipient";
+      await admin.rpc("finish_wallet_withdrawal", { p_paystack_ref: withdrawal.paystack_ref, p_transfer_status: "failed", p_error: reason });
+      return NextResponse.json({ error: reason }, { status: 502 });
+    }
+    if (!recipient.recipient_code) {
+      const reason = "Paystack did not return a transfer recipient code";
+      await admin.rpc("finish_wallet_withdrawal", { p_paystack_ref: withdrawal.paystack_ref, p_transfer_status: "failed", p_error: reason });
+      return NextResponse.json({ error: reason }, { status: 502 });
+    }
+
+    let transfer: { status?: string; transfer_code?: string };
+    try {
+      transfer = await paystackRequest<{ status?: string; transfer_code?: string }>("/transfer", "POST", {
+        source: "balance",
+        amount: Math.round(Number(withdrawal.amount_ksh) * 100),
+        recipient: recipient.recipient_code,
+        reference: withdrawal.paystack_ref,
+        currency: "KES",
+        reason: `Comrade Hub withdrawal ${id.slice(0, 8)}`,
+      });
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : "Paystack transfer result is unclear; check Paystack before retrying";
+      if (!(err instanceof PaystackRequestError) || !err.outcomeUnknown) {
+        await admin.rpc("finish_wallet_withdrawal", { p_paystack_ref: withdrawal.paystack_ref, p_transfer_status: "failed", p_error: reason });
+        return NextResponse.json({ error: reason }, { status: 502 });
+      }
+      await admin.from("wallet_transactions").update({ withdrawal_error: reason }).eq("id", id).eq("status", "processing");
+      return NextResponse.json({ ok: true, status: "processing", message: reason });
+    }
+
+    const transferStatus = String(transfer.status || "pending");
+    await admin.from("wallet_transactions").update({
+      withdrawal_transfer_code: transfer.transfer_code || null,
+      withdrawal_transfer_status: transferStatus,
+      withdrawal_error: transferStatus === "otp" ? "Paystack requires a transfer OTP" : null,
+    }).eq("id", id).eq("status", "processing");
+    if (transferStatus === "success" || transferStatus === "failed") {
+      const { error: finishError } = await admin.rpc("finish_wallet_withdrawal", {
+        p_paystack_ref: withdrawal.paystack_ref,
+        p_transfer_status: transferStatus,
+        p_transfer_code: transfer.transfer_code || null,
+      });
+      if (finishError) return NextResponse.json({ error: finishError.message }, { status: 500 });
+    }
+  } else if (action === "reject_withdrawal") {
+    const { data: withdrawal, error: withdrawalError } = await admin.from("wallet_transactions")
+      .select("id, wallet_id, amount_ksh, status")
+      .eq("id", id).eq("type", "withdrawal").maybeSingle();
+    if (withdrawalError) return NextResponse.json({ error: withdrawalError.message }, { status: 500 });
+    if (!withdrawal || withdrawal.status !== "pending") return NextResponse.json({ error: "This withdrawal is no longer awaiting approval" }, { status: 409 });
+    ({ error } = await admin.from("wallet_transactions").update({ status: "failed", withdrawal_error: "Rejected by admin" }).eq("id", id).eq("status", "pending"));
+    if (!error) {
+      const { data: wallet } = await admin.from("wallets").select("user_id").eq("id", withdrawal.wallet_id).maybeSingle();
+      if (wallet) await admin.from("system_messages").insert({ user_id: wallet.user_id, type: "withdrawal", title: "Withdrawal declined", body: "Your withdrawal request was declined. No money was deducted from your wallet." });
+    }
+  } else if (action === "verify_withdrawal" || action === "finalize_withdrawal") {
+    const { data: withdrawal, error: withdrawalError } = await admin.from("wallet_transactions")
+      .select("id, amount_ksh, paystack_ref, status, withdrawal_transfer_code")
+      .eq("id", id).eq("type", "withdrawal").maybeSingle();
+    if (withdrawalError) return NextResponse.json({ error: withdrawalError.message }, { status: 500 });
+    if (!withdrawal || withdrawal.status !== "processing") return NextResponse.json({ error: "This withdrawal is not processing" }, { status: 409 });
+    let transfer: { status?: string; transfer_code?: string; amount?: number; currency?: string; reference?: string };
+    try {
+      if (action === "finalize_withdrawal") {
+        const otp = String(value || "").trim();
+        if (!/^\d{4,10}$/.test(otp) || !withdrawal.withdrawal_transfer_code) return NextResponse.json({ error: "Enter the Paystack transfer OTP" }, { status: 400 });
+        transfer = await paystackRequest<{ status?: string; transfer_code?: string }>("/transfer/finalize_transfer", "POST", { transfer_code: withdrawal.withdrawal_transfer_code, otp });
+      } else {
+        transfer = await paystackRequest<{ status?: string; transfer_code?: string; amount?: number; currency?: string; reference?: string }>(`/transfer/verify/${encodeURIComponent(withdrawal.paystack_ref)}`);
+      }
+    } catch (err) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : "Paystack transfer check failed" }, { status: 502 });
+    }
+    const transferStatus = String(transfer.status || "pending");
+    if (action === "verify_withdrawal" && (transfer.currency !== "KES" || Number(transfer.amount) !== Math.round(Number(withdrawal.amount_ksh) * 100) || transfer.reference !== withdrawal.paystack_ref)) {
+      return NextResponse.json({ error: "Paystack transfer details do not match this withdrawal" }, { status: 400 });
+    }
+    await admin.from("wallet_transactions").update({ withdrawal_transfer_code: transfer.transfer_code || withdrawal.withdrawal_transfer_code, withdrawal_transfer_status: transferStatus, withdrawal_error: transferStatus === "otp" ? "Paystack requires a transfer OTP" : null }).eq("id", id).eq("status", "processing");
+    if (transferStatus === "success" || transferStatus === "failed") {
+      const { error: finishError } = await admin.rpc("finish_wallet_withdrawal", { p_paystack_ref: withdrawal.paystack_ref, p_transfer_status: transferStatus, p_transfer_code: transfer.transfer_code || withdrawal.withdrawal_transfer_code });
+      if (finishError) return NextResponse.json({ error: finishError.message }, { status: 500 });
+    }
   } else if (action === "set_cause_status") {
     if (!["active", "paused", "closed"].includes(String(value))) return NextResponse.json({ error: "Invalid cause status" }, { status: 400 });
     ({ error } = await admin.from("causes").update({ status: value, closed_at: value === "closed" ? new Date().toISOString() : null }).eq("id", id));

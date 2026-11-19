@@ -19,13 +19,38 @@ export async function POST(req: Request) {
   }
 
   const event = JSON.parse(rawBody);
+  const admin = supabaseAdmin();
+
+  if (["transfer.success", "transfer.failed", "transfer.reversed"].includes(event.event)) {
+    const reference = String(event.data?.reference || "");
+    if (!reference) return NextResponse.json({ ok: true });
+    const { data: withdrawal, error: withdrawalError } = await admin.from("wallet_transactions")
+      .select("amount_ksh")
+      .eq("paystack_ref", reference)
+      .eq("type", "withdrawal")
+      .maybeSingle();
+    if (withdrawalError) return NextResponse.json({ error: "Could not find withdrawal" }, { status: 500 });
+    if (!withdrawal) return NextResponse.json({ ok: true });
+    if (event.data?.currency !== "KES" || Math.round(Number(withdrawal.amount_ksh) * 100) !== Number(event.data.amount)) {
+      return NextResponse.json({ error: "Paystack transfer details do not match" }, { status: 400 });
+    }
+    const transferStatus = event.event === "transfer.success" ? "success" : event.event === "transfer.failed" ? "failed" : "reversed";
+    const { error } = await admin.rpc("finish_wallet_withdrawal", {
+      p_paystack_ref: reference,
+      p_transfer_status: transferStatus,
+      p_transfer_code: event.data?.transfer_code || null,
+      p_error: event.data?.failures ? String(event.data.failures) : null,
+    });
+    if (error) return NextResponse.json({ error: "Could not update wallet after transfer" }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  }
+
   if (event.event !== "charge.success") return NextResponse.json({ ok: true });
 
   const reference = String(event.data?.reference || "");
   const amountKsh = Number(event.data?.amount || 0) / 100;
   if (!reference || amountKsh <= 0) return NextResponse.json({ ok: true });
 
-  const admin = supabaseAdmin();
   if (reference.startsWith("dep_")) {
     const { data: transaction, error: transactionError } = await admin
       .from("wallet_transactions")

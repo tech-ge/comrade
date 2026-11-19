@@ -10,7 +10,7 @@ export async function GET() {
   const admin = supabaseAdmin();
   const { data: wallet, error } = await admin
     .from("wallets")
-    .select("id, balance_ksh")
+    .select("id, balance_ksh, reserved_ksh")
     .eq("user_id", user.id)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -36,6 +36,8 @@ export async function GET() {
 
   return NextResponse.json({
     balance_ksh: wallet.balance_ksh,
+    reserved_ksh: wallet.reserved_ksh || 0,
+    available_balance_ksh: Number(wallet.balance_ksh) - Number(wallet.reserved_ksh || 0),
     transactions: transactions || [],
     withdraw_unlocked: Boolean(recentGift),
   });

@@ -804,6 +804,7 @@ html.theme-transitioning * {
 .admin-badge.green { background: var(--brand-green-soft); color: var(--brand-green); }
 .admin-badge.amber { background: rgba(217,119,6,.12); color: #b45309; }
 .admin-badge.rose { background: var(--brand-red-soft); color: var(--brand-red); }
+.admin-badge.blue { background: rgba(37,99,235,.1); color: #2563eb; }
 .admin-badge.neutral { background: var(--surface-3); color: var(--text-secondary); }
 .admin-record-actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; gap: .4rem; justify-content: flex-end; }
 .admin-control-wrap { display: inline-flex; flex-direction: column; align-items: flex-end; gap: .2rem; }
@@ -829,6 +830,9 @@ html.theme-transitioning * {
 .admin-cause-form-heading h2 { margin: 0; font-size: 1.05rem; }
 .admin-cause-form label { display: grid; gap: .35rem; color: var(--text-secondary); font-size: .75rem; font-weight: 700; }
 .admin-cause-form .input { width: 100%; }
+.admin-otp-form { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+.admin-otp-form .input { width: 9rem; min-height: 2.25rem; padding: .4rem .55rem; font-size: .75rem; }
+.admin-otp-form small { flex-basis: 100%; color: var(--text-muted); font-size: .68rem; }
 @media (min-width: 760px) {
   .admin-stat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
   .admin-stat-card { min-height: 9.5rem; padding: 1.2rem; }

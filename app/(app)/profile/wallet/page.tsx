@@ -9,9 +9,12 @@ type Transaction = {
   status: string;
   created_at: string;
 };
+type BankOption = { name: string; code: string };
 
 export default function WalletPage() {
   const [balance, setBalance] = useState(0);
+  const [reservedBalance, setReservedBalance] = useState(0);
+  const [banks, setBanks] = useState<BankOption[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [withdrawUnlocked, setWithdrawUnlocked] = useState(false);
   const [amount, setAmount] = useState("");
@@ -19,6 +22,8 @@ export default function WalletPage() {
   const [accountNumber, setAccountNumber] = useState("");
   const [bankName, setBankName] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
+  const [payoutMethod, setPayoutMethod] = useState<"mpesa" | "bank">("mpesa");
+  const [bankCode, setBankCode] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -26,13 +31,17 @@ export default function WalletPage() {
     const response = await fetch("/api/wallet/status");
     const data = await response.json();
     if (response.ok) {
-      setBalance(Number(data.balance_ksh || 0));
+      setBalance(Number(data.available_balance_ksh ?? data.balance_ksh ?? 0));
+      setReservedBalance(Number(data.reserved_ksh || 0));
       setTransactions(data.transactions || []);
       setWithdrawUnlocked(Boolean(data.withdraw_unlocked));
     }
   }
 
   useEffect(() => {
+    fetch("/api/paystack/banks").then(response => response.json()).then(data => {
+      if (Array.isArray(data.banks)) setBanks(data.banks);
+    }).catch(() => {});
     const params = new URLSearchParams(window.location.search);
     const reference = params.get("reference");
     if (!reference) {
@@ -91,9 +100,11 @@ export default function WalletPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         amount_ksh: Number(amount),
+        payout_method: payoutMethod,
         account_name: accountName,
         account_number: accountNumber,
         bank_name: bankName,
+        bank_code: bankCode,
         mobile_number: mobileNumber,
       }),
     });
@@ -103,7 +114,7 @@ export default function WalletPage() {
       setMessage(data.error || "Withdrawal failed");
       return;
     }
-    setMessage("Withdrawal request submitted for admin review.");
+    setMessage(data.message || "Withdrawal request submitted for admin review.");
     setAmount("");
     await load();
   }
@@ -115,6 +126,7 @@ export default function WalletPage() {
       <div className="card mb-4">
         <p className="text-sm text-brand-gray">Available balance</p>
         <p className="text-3xl font-bold">Ksh {balance.toLocaleString()}</p>
+        {reservedBalance > 0 && <p className="mt-1 text-xs text-brand-gray">Ksh {reservedBalance.toLocaleString()} reserved while an approved withdrawal is processing.</p>}
       </div>
 
       <div className="card mb-4 space-y-3">
@@ -134,15 +146,30 @@ export default function WalletPage() {
 
       <form className="card mb-4 space-y-3" onSubmit={withdraw}>
         <h2 className="font-bold">Withdraw</h2>
-        <p className="text-sm text-brand-gray">
-          Withdrawals unlock after receiving at least one gift within the past 7 days.
-        </p>
+        <p className="text-sm text-brand-gray">Requests go to an admin first. Your wallet is charged only after Paystack confirms the payout. Withdrawals unlock after receiving a gift within the past 7 days.</p>
         {withdrawUnlocked ? (
           <>
-            <input className="input" placeholder="Account name" value={accountName} onChange={(event) => setAccountName(event.target.value)} required />
-            <input className="input" placeholder="Account number" value={accountNumber} onChange={(event) => setAccountNumber(event.target.value)} required />
-            <input className="input" placeholder="Bank name" value={bankName} onChange={(event) => setBankName(event.target.value)} required />
-            <input className="input" placeholder="Mobile number (optional)" value={mobileNumber} onChange={(event) => setMobileNumber(event.target.value)} />
+            <label className="block text-sm font-medium">Send to
+              <select className="input mt-1" value={payoutMethod} onChange={event => setPayoutMethod(event.target.value as "mpesa" | "bank")}>
+                <option value="mpesa">M-Pesa</option>
+                <option value="bank">Kenyan bank account</option>
+              </select>
+            </label>
+            <input className="input" placeholder="Account holder name" value={accountName} onChange={(event) => setAccountName(event.target.value)} required />
+            {payoutMethod === "mpesa" ? (
+              <input className="input" type="tel" placeholder="M-Pesa phone number (e.g. 0712345678)" value={mobileNumber} onChange={(event) => setMobileNumber(event.target.value)} required />
+            ) : (
+              <>
+                <label className="block text-sm font-medium">Bank
+                  <select className="input mt-1" value={bankCode} onChange={event => { setBankCode(event.target.value); setBankName(banks.find(bank => bank.code === event.target.value)?.name || ""); }} required>
+                    <option value="">Choose a bank</option>
+                    {banks.map(bank => <option value={bank.code} key={bank.code}>{bank.name}</option>)}
+                  </select>
+                </label>
+                {banks.length === 0 && <p className="text-xs text-brand-red">Bank list unavailable. Try again later or choose M-Pesa.</p>}
+                <input className="input" placeholder="Bank account number" value={accountNumber} onChange={(event) => setAccountNumber(event.target.value)} required />
+              </>
+            )}
             <input className="input" type="number" min={100} placeholder="Amount (Ksh)" value={amount} onChange={(event) => setAmount(event.target.value)} required />
             <button className="btn-primary w-full" disabled={loading}>
               {loading ? "Submitting…" : "Request withdrawal"}
