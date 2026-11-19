@@ -9,7 +9,7 @@ export async function initializePaystack(amountKsh: number, reference: string) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      email: "geoffrey@gmail.com",
+      email: "geoffreymuthoka200@gmail.com",
       amount: Math.round(amountKsh * 100),
       reference,
       currency: "KES",

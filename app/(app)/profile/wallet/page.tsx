@@ -33,7 +33,36 @@ export default function WalletPage() {
   }
 
   useEffect(() => {
-    load();
+    const params = new URLSearchParams(window.location.search);
+    const reference = params.get("reference");
+    if (!reference) {
+      load();
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      setMessage("Verifying your Paystack payment…");
+      const response = await fetch(`/api/paystack/verify?reference=${encodeURIComponent(reference)}`);
+      const data = await response.json();
+      if (cancelled) return;
+      if (response.ok && data.status === "success") {
+        setMessage(`Deposit of Ksh ${Number(data.amount_ksh).toLocaleString()} added to your wallet.`);
+        window.history.replaceState({}, "", window.location.pathname);
+      } else if (data.status === "ongoing" || data.status === "pending") {
+        setMessage("Your payment is still processing. Your wallet will update when Paystack confirms it.");
+        window.history.replaceState({}, "", window.location.pathname);
+      } else if (data.status === "failed" || data.status === "abandoned") {
+        setMessage("Payment was not completed, so nothing was added to your wallet.");
+        window.history.replaceState({}, "", window.location.pathname);
+      } else {
+        setMessage(data.error || "We could not confirm this payment. Contact support if you were charged.");
+      }
+      await load();
+    })().catch(() => {
+      if (!cancelled) setMessage("We could not verify the payment right now. Your wallet will update once Paystack confirms it.");
+    });
+    return () => { cancelled = true; };
   }, []);
 
   async function deposit() {

@@ -27,17 +27,20 @@ export async function POST(req: Request) {
 
   const admin = supabaseAdmin();
   if (reference.startsWith("dep_")) {
-    const { data: transaction } = await admin
+    const { data: transaction, error: transactionError } = await admin
       .from("wallet_transactions")
-      .select("wallet_id")
+      .select("wallet_id, amount_ksh")
       .eq("paystack_ref", reference)
+      .eq("type", "deposit")
       .maybeSingle();
-    if (transaction) {
-      await admin.rpc("process_wallet_deposit", {
+    if (transactionError) return NextResponse.json({ error: "Could not find deposit" }, { status: 500 });
+    if (transaction && event.data?.currency === "KES" && Math.round(Number(transaction.amount_ksh) * 100) === Number(event.data.amount)) {
+      const { error } = await admin.rpc("process_wallet_deposit", {
         p_wallet_id: transaction.wallet_id,
         p_amount_ksh: amountKsh,
         p_paystack_ref: reference,
       });
+      if (error) return NextResponse.json({ error: "Wallet credit failed" }, { status: 500 });
     }
   }
 

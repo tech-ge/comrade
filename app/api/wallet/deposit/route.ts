@@ -11,8 +11,8 @@ export async function POST(req: Request) {
 
   const { amount_ksh } = await req.json();
   const amount = Number(amount_ksh);
-  if (!Number.isFinite(amount) || amount < 10) {
-    return NextResponse.json({ error: "Minimum deposit is Ksh 10" }, { status: 400 });
+  if (!Number.isFinite(amount) || amount < 10 || Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-8) {
+    return NextResponse.json({ error: "Minimum deposit is Ksh 10. Use no more than 2 decimal places." }, { status: 400 });
   }
 
   const admin = supabaseAdmin();
