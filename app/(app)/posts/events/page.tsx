@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import PhotoUploadField from "@/components/ui/PhotoUploadField";
 
 export default function EventsPage() {
   const [form, setForm] = useState({ title: "", date: "", time: "", location: "", details: "" });
+  const [imagePath, setImagePath] = useState("");
   const [message, setMessage] = useState("");
 
   async function submit(event: React.FormEvent) {
@@ -14,6 +16,7 @@ export default function EventsPage() {
       body: JSON.stringify({
         type: "story",
         body: `${form.title.trim()}\nWhen: ${form.date} at ${form.time}\nWhere: ${form.location.trim()}\n\n${form.details.trim()}`,
+        image_url: imagePath || null,
         is_event: true,
         target_scope: "school",
       }),
@@ -31,6 +34,7 @@ export default function EventsPage() {
         <input className="input" type="time" value={form.time} onChange={(event) => setForm({ ...form, time: event.target.value })} required />
         <input className="input" value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} placeholder="Location" required />
         <textarea className="input" rows={4} value={form.details} onChange={(event) => setForm({ ...form, details: event.target.value })} placeholder="More details about the event" required />
+        <PhotoUploadField label="Add an event photo (optional)" onUploaded={path => setImagePath(path)} />
         <button className="btn-primary w-full">Schedule event</button>
         {message && <p className="text-sm">{message}</p>}
       </form>

@@ -1,11 +1,13 @@
 "use client";
 import { useState } from "react";
+import PhotoUploadField from "@/components/ui/PhotoUploadField";
 export default function NewCouplePost() {
   const [form, setForm] = useState({ description: "", poster_gender: "male", looking_for_gender: "female", target_scope: "country", target_county_id: "" });
+  const [photoPath, setPhotoPath] = useState("");
   const [msg, setMsg] = useState("");
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const res = await fetch("/api/couples", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(form) });
+    const res = await fetch("/api/couples", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ ...form, photo_path: photoPath || null }) });
     const data = await res.json();
     if (res.ok) setMsg("Posted! You'll see applicants soon.");
     else setMsg(data.error || "Failed");
@@ -14,6 +16,7 @@ export default function NewCouplePost() {
     <main className="max-w-2xl mx-auto px-4 pt-4">
       <h1 className="text-2xl font-bold mb-3">Post Search</h1>
       <form onSubmit={submit} className="space-y-3">
+        <PhotoUploadField label="Add a profile photo (optional)" onUploaded={path => setPhotoPath(path)} />
         <textarea className="input" placeholder="Describe what you're looking for" rows={4} value={form.description} onChange={e=>setForm({...form, description:e.target.value})} required />
         <select className="input" value={form.poster_gender} onChange={e=>setForm({...form, poster_gender:e.target.value})}>
           <option value="male">I am male</option>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
+import { resolvePhotoUrl } from "@/lib/storage/photo";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -9,11 +10,12 @@ export default async function CouplesPage() {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: posts } = await sb.from("couple_posts")
+  const { data: postRows } = await sb.from("couple_posts")
     .select("id, photo_url, description, poster_gender, looking_for_gender, target_scope, created_at")
     .eq("status", "active")
     .order("created_at", { ascending: false })
     .limit(30);
+  const posts = await Promise.all((postRows || []).map(async post => ({ ...post, photo_url: await resolvePhotoUrl(post.photo_url) || "/placeholder-couple.png" })));
 
   return (
     <main className="max-w-2xl mx-auto px-4 pt-4">

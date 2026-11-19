@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { resolvePhotoUrl } from "@/lib/storage/photo";
 
 export const dynamic = "force-dynamic";
 
@@ -15,5 +16,6 @@ export async function GET() {
     .order("created_at", { ascending: false })
     .limit(30);
 
-  return NextResponse.json({ data: stories || [] });
+  const data = await Promise.all((stories || []).map(async story => ({ ...story, image_url: await resolvePhotoUrl(story.image_url) })));
+  return NextResponse.json({ data });
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import SendHelpGift from "@/components/wallet/SendHelpGift";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,7 @@ export default async function HelpPage() {
           <li key={p.id} className="card">
             <p className="text-xs text-brand-gray mb-1">{p.help_type}</p>
             <p className="whitespace-pre-wrap">{p.description}</p>
+            <SendHelpGift postId={p.id} />
           </li>
         ))}
       </ul>

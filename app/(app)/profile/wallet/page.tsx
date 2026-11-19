@@ -129,7 +129,7 @@ export default function WalletPage() {
         {reservedBalance > 0 && <p className="mt-1 text-xs text-brand-gray">Ksh {reservedBalance.toLocaleString()} reserved while an approved withdrawal is processing.</p>}
       </div>
 
-      <div className="card mb-4 space-y-3">
+      <div id="deposit" className="card mb-4 scroll-mt-6 space-y-3">
         <h2 className="font-bold">Deposit</h2>
         <input
           className="input"
@@ -144,7 +144,7 @@ export default function WalletPage() {
         </button>
       </div>
 
-      <form className="card mb-4 space-y-3" onSubmit={withdraw}>
+      <form id="withdraw" className="card mb-4 scroll-mt-6 space-y-3" onSubmit={withdraw}>
         <h2 className="font-bold">Withdraw</h2>
         <p className="text-sm text-brand-gray">Requests go to an admin first. Your wallet is charged only after Paystack confirms the payout. Withdrawals unlock after receiving a gift within the past 7 days.</p>
         {withdrawUnlocked ? (

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { resolvePhotoUrl } from "@/lib/storage/photo";
 
 export const dynamic = "force-dynamic";
 
@@ -11,12 +12,13 @@ export default async function PostsPage() {
 
   const { data: profile } = await sb.from("users").select("university_id, home_county_id").eq("id", user.id).single();
 
-  const { data: stories } = await sb
+  const { data: storyRows } = await sb
     .from("stories")
     .select("id, body, image_url, is_event, target_scope, created_at")
     .eq("status", "active")
     .order("created_at", { ascending: false })
     .limit(30);
+  const stories = await Promise.all((storyRows || []).map(async story => ({ ...story, image_url: await resolvePhotoUrl(story.image_url) })));
 
   return (
     <main className="feed-page">

@@ -14,6 +14,9 @@ export async function POST(req: Request) {
     .eq("id", user.id)
     .single();
   if (!profile) return NextResponse.json({ error: "Profile incomplete" }, { status: 400 });
+  if (body.image_url && (typeof body.image_url !== "string" || !body.image_url.startsWith(`${user.id}/`))) {
+    return NextResponse.json({ error: "Upload an image using the photo picker." }, { status: 400 });
+  }
 
   if (body.type === "story") {
     if (!requiredText(body.body)) return NextResponse.json({ error: "Write something before posting." }, { status: 400 });
