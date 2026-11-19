@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
@@ -22,6 +23,18 @@ export default async function AdminDashboard() {
   return (
     <main className="max-w-4xl mx-auto px-4 pt-6">
       <h1 className="text-3xl font-bold mb-6">Admin dashboard</h1>
+      <nav className="flex flex-wrap gap-2 mb-6">
+        {[
+          ["Users", "/admin/users"],
+          ["Reports", "/admin/reports"],
+          ["Moderation queue", "/admin/scan-queue"],
+          ["Transactions", "/admin/transactions"],
+          ["Causes", "/admin/causes"],
+          ["Suggestions", "/admin/suggestions"],
+        ].map(([label, href]) => (
+          <Link className="btn-secondary" href={href} key={href}>{label}</Link>
+        ))}
+      </nav>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           ["Users", users || 0],

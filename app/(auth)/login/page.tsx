@@ -40,7 +40,7 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Login failed"); return; }
-      router.replace("/posts");
+      router.replace(data.role === "admin" ? "/admin/dashboard" : "/posts");
       router.refresh();
     } catch {
       setError("Could not reach the server. Check your connection and try again.");

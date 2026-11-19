@@ -11,7 +11,7 @@ export default async function ProfilePage() {
 
   const { data: profile } = await sb
     .from("users")
-    .select("public_id, first_name, full_name, course, year_of_study, campus, profile_photo_url")
+    .select("public_id, first_name, full_name, course, year_of_study, campus, profile_photo_url, role")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -29,6 +29,9 @@ export default async function ProfilePage() {
         )}
       </div>
       <div className="grid grid-cols-2 gap-2">
+        {profile?.role === "admin" && (
+          <Link href="/admin/dashboard" className="card text-center py-4">Admin dashboard</Link>
+        )}
         <Link href="/profile/wallet" className="card text-center py-4">Wallet</Link>
         <Link href="/profile/notifications" className="card text-center py-4">Notifications</Link>
         <Link href="/profile/suggestions" className="card text-center py-4">Suggestions</Link>

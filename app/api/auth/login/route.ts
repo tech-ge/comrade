@@ -36,5 +36,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid ADM number or password" }, { status: 401 });
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, role: user.role });
 }
