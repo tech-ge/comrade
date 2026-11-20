@@ -3,7 +3,7 @@ import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
   title: {
-    default: "Comrade Hub Kenya — Support Comrade",
+    default: "Comrade Hub Kenya",
     template: "%s · Comrade Hub Kenya",
   },
   description:
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0B6B3A",
+  themeColor: "#0f1b0d",
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
