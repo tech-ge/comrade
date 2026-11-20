@@ -7,24 +7,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [resetSent, setResetSent] = useState(false);
-
-  async function forgotPassword() {
-    if (!adm) {
-      setError("Enter your ADM number, then use forgot password.");
-      return;
-    }
-    const lookup = await fetch("/api/auth/forgot-password-by-adm", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ adm_number: adm }),
-    });
-    setResetSent(lookup.ok);
-    if (!lookup.ok) {
-      const data = await lookup.json();
-      setError(data.error || "Unable to send reset email");
-    }
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -63,10 +45,7 @@ export default function LoginPage() {
         <button type="submit" disabled={loading} className="btn-primary w-full">{loading ? "Logging in..." : "Log In"}</button>
       </form>
       <p className="mt-6 text-sm text-brand-gray">No account? <Link href="/signup">Sign up</Link></p>
-      <button type="button" className="mt-3 text-sm text-brand-green" onClick={forgotPassword}>
-        Forgot password
-      </button>
-      {resetSent && <p className="text-sm mt-2">Password reset email sent.</p>}
+      <p className="mt-3 text-sm"><Link href="/reset-password" className="text-brand-green">Forgot password?</Link></p>
       <p className="mt-3 text-sm text-brand-gray border-t border-gray-200 pt-3">
         Want to sponsor students? <Link href="/sponsor" className="font-semibold text-brand-green">Sponsor page</Link>
       </p>

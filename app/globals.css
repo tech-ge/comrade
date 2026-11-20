@@ -1000,6 +1000,9 @@ html.theme-transitioning * {
 .admin-user-details dd { margin: .1rem 0 0; color: var(--text-primary); font-size: .73rem; overflow-wrap: anywhere; }
 .admin-user-details > a { font-size: .74rem; font-weight: 700; }
 .admin-user-details > p { margin-top: .5rem; color: var(--brand-red); font-size: .72rem; }
+.admin-user-email { display: grid; justify-items: start; gap: .4rem; margin: .55rem 0; }
+.admin-user-email form { display: grid; width: min(100%, 30rem); gap: .45rem; margin: .45rem 0; }
+.admin-user-email small { color: var(--text-secondary); font-size: .72rem; }
 .admin-user-details[open] { padding-top: .8rem; }
 .admin-user-details { grid-column: 1 / -1; }
 .admin-record { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem; }

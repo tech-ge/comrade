@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { generatePublicId } from "@/lib/utils/public-id";
+import { sendAdminEmail } from "@/lib/resend/email";
 
 class PaystackRequestError extends Error {
   constructor(message: string, readonly outcomeUnknown = false) { super(message); }
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
   const { data: profile } = await sb.from("users").select("role").eq("id", user.id).maybeSingle();
   if (profile?.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  let body: { action?: unknown; id?: unknown; value?: unknown; title?: unknown; description?: unknown; goal_ksh?: unknown; content_type?: unknown; target_id?: unknown; field1?: unknown; field2?: unknown };
+  let body: { action?: unknown; id?: unknown; value?: unknown; title?: unknown; description?: unknown; goal_ksh?: unknown; content_type?: unknown; target_id?: unknown; field1?: unknown; field2?: unknown; subject?: unknown; message?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request" }, { status: 400 }); }
   const { action, id, value } = body;
   if (typeof action !== "string") {
@@ -109,6 +110,19 @@ export async function POST(req: Request) {
     }
     if (id === user.id && value !== "admin") return NextResponse.json({ error: "You cannot remove your own admin access" }, { status: 400 });
     ({ error } = await admin.from("users").update({ role: value }).eq("id", id));
+  } else if (action === "email_user") {
+    const subject = typeof body.subject === "string" ? body.subject.trim() : "";
+    const message = typeof body.message === "string" ? body.message.trim() : "";
+    if (!subject || subject.length > 160 || !message || message.length > 10000) return NextResponse.json({ error: "Enter a subject (up to 160 characters) and message (up to 10,000 characters)." }, { status: 400 });
+    const { data: recipient } = await admin.from("users").select("email,deleted_at").eq("id", id).maybeSingle();
+    if (!recipient?.email || recipient.deleted_at) return NextResponse.json({ error: "This user does not have an active email address." }, { status: 404 });
+    try {
+      const result = await sendAdminEmail(recipient.email, subject, message);
+      if (result.error) return NextResponse.json({ error: "Email could not be sent. Check the email service configuration." }, { status: 502 });
+    } catch {
+      return NextResponse.json({ error: "Email could not be sent. Check the email service configuration." }, { status: 502 });
+    }
+    await admin.from("audit_log").insert({ actor_id: user.id, action: "admin_email_sent", target_type: "user", target_id: id, meta: { subject } });
   } else if (action === "reply_suggestion") {
     if (!String(value || "").trim()) return NextResponse.json({ error: "Reply cannot be empty" }, { status: 400 });
     ({ error } = await admin.from("suggestions").update({ admin_reply: String(value).trim(), replied_at: new Date().toISOString() }).eq("id", id));
