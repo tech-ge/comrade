@@ -11,9 +11,14 @@ export default function NewHelpAdvicePage() {
   const [adviceNeeded, setAdviceNeeded] = useState("");
   const [imagePath, setImagePath] = useState("");
   const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [photoReset, setPhotoReset] = useState(0);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    try {
     const body = mode === "help"
       ? { type: "help", help_type: helpType, description, image_url: imagePath || null }
       : { type: "advice", what_happened: whatHappened, advice_needed: adviceNeeded, image_url: imagePath || null };
@@ -23,7 +28,9 @@ export default function NewHelpAdvicePage() {
       body: JSON.stringify(body),
     });
     const data = await response.json();
-    setMessage(response.ok ? "Published." : data.error || "Failed");
+    if (response.ok) { setMessage("Published."); setDescription(""); setWhatHappened(""); setAdviceNeeded(""); setImagePath(""); setPhotoReset(value => value + 1); }
+    else setMessage(data.error || "Failed");
+    } finally { setBusy(false); }
   }
 
   return (
@@ -59,8 +66,8 @@ export default function NewHelpAdvicePage() {
             </label>
           </>
         )}
-        <PhotoUploadField label="Add a photo (optional)" onUploaded={path => setImagePath(path)} />
-        <button className="btn-primary w-full">Publish</button>
+        <PhotoUploadField resetKey={photoReset} label="Add a photo (optional)" onUploaded={path => setImagePath(path)} />
+        <button className="btn-primary w-full" disabled={busy}>{busy ? "Publishing…" : "Publish"}</button>
         {message && <p className="text-sm">{message}</p>}
       </form>
     </main>

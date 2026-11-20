@@ -3,8 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-export function AdminControl({ action, id, value, label, tone = "default", confirmText }: {
-  action: string; id: string; value?: string; label: string; tone?: "default" | "danger"; confirmText?: string;
+export function AdminControl({ action, id, value, label, tone = "default", confirmText, contentType }: {
+  action: string; id: string; value?: string; label: string; tone?: "default" | "danger"; confirmText?: string; contentType?: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -15,7 +15,7 @@ export function AdminControl({ action, id, value, label, tone = "default", confi
     setBusy(true); setError("");
     try {
       const response = await fetch("/api/admin/action", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, id, value }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, id, value, content_type: contentType, target_id: id }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Action failed");

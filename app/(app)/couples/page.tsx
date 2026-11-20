@@ -16,8 +16,16 @@ export default async function CouplesPage() {
     .select("id,user_id,photo_url,description,poster_gender,looking_for_gender,target_scope,target_county_id,created_at")
     .eq("status", "active")
     .order("created_at", { ascending: false })
-    .limit(30);
+    .limit(50);
   const posts = await Promise.all((postRows || []).map(async post => ({ ...post, photo_url: await resolvePhotoUrl(post.photo_url) || "/placeholder-couple.png" })));
+  const { data: myPostRows } = await supabaseAdmin().from("couple_posts").select("id,user_id,description").eq("user_id", user.id).eq("status", "active").order("created_at", { ascending: false });
+  const myPosts = myPostRows || [];
+  const myPostIds = myPosts.map(post => post.id);
+  const admin = supabaseAdmin();
+  const [{ data: applications }, { data: views }] = myPostIds.length ? await Promise.all([
+    admin.from("couple_applications").select("post_id").in("post_id", myPostIds),
+    admin.from("couple_post_views").select("post_id").in("post_id", myPostIds),
+  ]) : [{ data: [] }, { data: [] }];
   const authorIds = [...new Set(posts.map(post => post.user_id))];
   const { data: authorRows } = authorIds.length ? await supabaseAdmin().from("users").select("id,full_name,first_name,username,public_id,profile_photo_url,deleted_at").in("id", authorIds) : { data: [] };
   const authors = new Map(await Promise.all((authorRows || []).map(async author => [author.id, { ...author, profile_photo: await resolvePhotoUrl(author.profile_photo_url) }] as const)));
@@ -29,9 +37,10 @@ export default async function CouplesPage() {
     <main className="couples-page">
       <header className="couples-header">
         <div className="couples-title-line"><span aria-hidden="true">🌸</span><div><p className="feed-eyebrow">CAMPUS CONNECTIONS</p><h1>Find your person</h1></div><span aria-hidden="true">🌷</span></div>
-        <p>Meet someone new in your school, county, or across Kenya. Searches are matched to the other gender.</p>
+        <p>Browse public connection posts from across Kenya. If someone interests you, open their post to apply.</p>
         <Link href="/couples/new" className="couples-create-link">＋ Create a search</Link>
       </header>
+      {myPosts.length > 0 && <section className="couple-owner-stats"><h2>Your posts</h2>{myPosts.map(post => <article key={post.id}><p>{post.description}</p><span>{(views || []).filter(item => item.post_id === post.id).length} views</span><span>{(applications || []).filter(item => item.post_id === post.id).length} interested</span><Link href={`/couples/${post.id}`}>View details</Link></article>)}</section>}
       {(posts || []).length === 0 && <div className="couples-empty"><span>🌼</span><p>No matching searches yet.</p><small>Try checking again later or create your own search.</small></div>}
       <ul className="couple-card-grid">
         {(posts || []).map(p => (
@@ -43,9 +52,10 @@ export default async function CouplesPage() {
             </div>
             <div className="couple-card-content">
               <PostAuthor author={authors.get(p.user_id) || {}} />
-              <p className="couple-match-line"><span>♡</span> {p.poster_gender === "male" ? "He" : "She"} is looking to meet a {p.looking_for_gender}</p>
-              <p className="couple-description">{p.description}</p>
-              <Link href={`/couples/${p.id}`} className="couple-view-link">View search <span>→</span></Link>
+              <p className="couple-match-line"><span>♡</span> Open to meeting someone</p>
+              <p className="couple-description clamped">{p.description}</p>
+              {p.description.length > 120 && <Link href={`/couples/${p.id}`} className="couple-view-link">Read more <span>→</span></Link>}
+              <Link href={`/couples/${p.id}`} className="couple-interested-link">♡ Interested — apply</Link>
             </div>
           </li>
         ))}

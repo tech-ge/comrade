@@ -10,12 +10,27 @@ export async function POST(req: Request) {
 
   const body = await req.json();
   const requiredText = (value: unknown) => typeof value === "string" && value.trim().length > 0;
+  if (body.type === "report") {
+    const validTypes = ["story", "anonymous", "help", "advice", "gig", "couple", "comment"];
+    if (!validTypes.includes(body.target_type) || typeof body.target_id !== "string") return NextResponse.json({ error: "Choose valid content to report." }, { status: 400 });
+    const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 1000) : "";
+    const admin = supabaseAdmin();
+    const tableByType: Record<string, string> = { story: "stories", anonymous: "anonymous_posts", help: "help_posts", advice: "advice_posts", gig: "gigs", couple: "couple_posts", comment: "comments" };
+    const { data: target } = await admin.from(tableByType[body.target_type]).select("id").eq("id", body.target_id).maybeSingle();
+    if (!target) return NextResponse.json({ error: "That content is no longer available." }, { status: 404 });
+    const { data: existing } = await admin.from("reports").select("id").eq("target_type", body.target_type).eq("target_id", body.target_id).eq("reporter_id", user.id).maybeSingle();
+    if (existing) return NextResponse.json({ error: "You have already reported this content." }, { status: 409 });
+    const { error } = await admin.from("reports").insert({ target_type: body.target_type, target_id: body.target_id, reporter_id: user.id, reason: reason || "No comment provided" });
+    if (error) return NextResponse.json({ error: "Could not send this report." }, { status: 400 });
+    return NextResponse.json({ ok: true });
+  }
   const { data: profile } = await sb
     .from("users")
-    .select("university_id")
+    .select("university_id,read_only")
     .eq("id", user.id)
     .single();
   if (!profile) return NextResponse.json({ error: "Profile incomplete" }, { status: 400 });
+  if (profile.read_only) return NextResponse.json({ error: "Your account is read-only while reports are reviewed. You can still browse posts." }, { status: 403 });
   if (body.image_url && (typeof body.image_url !== "string" || !body.image_url.startsWith(`${user.id}/`))) {
     return NextResponse.json({ error: "Upload an image using the photo picker." }, { status: 400 });
   }

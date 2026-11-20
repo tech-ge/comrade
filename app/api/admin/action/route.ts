@@ -35,7 +35,7 @@ export async function POST(req: Request) {
   const { data: profile } = await sb.from("users").select("role").eq("id", user.id).maybeSingle();
   if (profile?.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  let body: { action?: unknown; id?: unknown; value?: unknown; title?: unknown; description?: unknown; goal_ksh?: unknown; content_type?: unknown; field1?: unknown; field2?: unknown };
+  let body: { action?: unknown; id?: unknown; value?: unknown; title?: unknown; description?: unknown; goal_ksh?: unknown; content_type?: unknown; target_id?: unknown; field1?: unknown; field2?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request" }, { status: 400 }); }
   const { action, id, value } = body;
   if (typeof action !== "string") {
@@ -56,7 +56,30 @@ export async function POST(req: Request) {
   } else if (action === "suspend_user") {
     ({ error } = await admin.from("users").update({ suspended: true, suspension_reason: String(value || "Suspended by admin") }).eq("id", id));
   } else if (action === "unsuspend_user") {
-    ({ error } = await admin.from("users").update({ suspended: false, suspension_reason: null }).eq("id", id));
+    ({ error } = await admin.from("users").update({ suspended: false, read_only: false, suspension_reason: null }).eq("id", id));
+  } else if (action === "set_read_only") {
+    ({ error } = await admin.from("users").update({ read_only: true, suspension_reason: String(value || "Read-only by admin") }).eq("id", id));
+  } else if (action === "clear_read_only") {
+    ({ error } = await admin.from("users").update({ read_only: false, suspension_reason: null }).eq("id", id));
+  } else if (action === "report_user") {
+    const targetType = String(body.content_type || "");
+    const targetId = String(body.target_id || "");
+    const targetMap: Record<string, string> = { story: "stories", anonymous: "anonymous_posts", help: "help_posts", advice: "advice_posts", gig: "gigs", couple: "couple_posts", comment: "comments" };
+    if (!targetMap[targetType] || !targetId) return NextResponse.json({ error: "Choose the reported content." }, { status: 400 });
+    const { data: target } = await admin.from(targetMap[targetType]).select("id,user_id").eq("id", targetId).maybeSingle();
+    if (!target?.user_id) return NextResponse.json({ error: "Content not found." }, { status: 404 });
+    const { data: ownReport } = await admin.from("reports").select("id").eq("target_type", targetType).eq("target_id", targetId).eq("reporter_id", user.id).maybeSingle();
+    if (!ownReport) {
+      const { error: reportError } = await admin.from("reports").insert({ target_type: targetType, target_id: targetId, reporter_id: user.id, reason: String(value || "Admin report") });
+      if (reportError) error = reportError;
+    }
+    if (!error) {
+      ({ error } = await admin.from("users").update({ read_only: true, suspension_reason: "Read-only by admin report" }).eq("id", target.user_id));
+      if (!error) {
+        const { data: reportCount } = await admin.from("reports").select("id").eq("target_type", targetType).eq("target_id", targetId);
+        await admin.from("moderation_flags").upsert({ target_type: targetType, target_id: targetId, report_count: reportCount?.length || 1, flagged_at: new Date().toISOString() }, { onConflict: "target_type,target_id" });
+      }
+    }
   } else if (action === "delete_user") {
     if (id === user.id) return NextResponse.json({ error: "You cannot delete your own admin account." }, { status: 400 });
     const { data: target, error: lookupError } = await admin.from("users").select("id,selfie_url,id_photo_url,profile_photo_url,deleted_at").eq("id", id).maybeSingle();
@@ -253,6 +276,15 @@ export async function POST(req: Request) {
         if (flagError) error = flagError;
       }
     }
+  } else if (action === "moderate_reported_content") {
+    const type = String(value || "");
+    const map: Record<string, { table: string; field?: string; hidden?: string | boolean; remove?: boolean }> = {
+      story: { table: "stories", field: "status", hidden: "deleted" }, anonymous: { table: "anonymous_posts", field: "is_flagged", hidden: true }, help: { table: "help_posts", field: "status", hidden: "closed" }, advice: { table: "advice_posts", remove: true }, gig: { table: "gigs", field: "status", hidden: "hidden" }, couple: { table: "couple_posts", field: "status", hidden: "closed" }, comment: { table: "comments", field: "body", hidden: "[removed by admin]" },
+    };
+    const target = map[type];
+    if (!target) return NextResponse.json({ error: "Unknown reported content type." }, { status: 400 });
+    if (target.remove) ({ error } = await admin.from(target.table).delete().eq("id", id));
+    else ({ error } = await admin.from(target.table).update({ [target.field as string]: target.hidden }).eq("id", id));
   } else if (action === "hide_flagged_content" || action === "restore_flagged_content" || action === "remove_flagged_content") {
     const { data: flag, error: flagError } = await admin.from("moderation_flags").select("target_type, target_id").eq("id", id).maybeSingle();
     if (flagError) error = flagError;

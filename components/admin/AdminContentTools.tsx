@@ -3,8 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
-export default function AdminContentTools({ type, id, field1, field2 = "", status }: {
-  type: string; id: string; field1: string; field2?: string; status?: string | null;
+export default function AdminContentTools({ type, id, field1, field2 = "", status, readOnly = false }: {
+  type: string; id: string; field1: string; field2?: string; status?: string | null; readOnly?: boolean;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -51,9 +51,9 @@ export default function AdminContentTools({ type, id, field1, field2 = "", statu
 
   return <div className="admin-content-tools">
     <div className="admin-content-tool-buttons">
-      <button className="admin-action" type="button" onClick={() => setEditing(value => !value)} disabled={busy}>{editing ? "Cancel edit" : "Edit"}</button>
+      {!readOnly && <button className="admin-action" type="button" onClick={() => setEditing(value => !value)} disabled={busy}>{editing ? "Cancel edit" : "Edit"}</button>}
       {status !== null && status !== undefined && <button className="admin-action" type="button" onClick={() => void visibility()} disabled={busy}>{status === "active" ? "Hide" : "Restore"}</button>}
-      <button className="admin-action danger" type="button" onClick={() => void remove()} disabled={busy}>Delete</button>
+      {!readOnly && <button className="admin-action danger" type="button" onClick={() => void remove()} disabled={busy}>Delete</button>}
     </div>
     {editing && <form className="admin-content-edit" onSubmit={save}>
       <label>Content<textarea className="input" rows={4} maxLength={5000} value={first} onChange={event => setFirst(event.target.value)} required /></label>

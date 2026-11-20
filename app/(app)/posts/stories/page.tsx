@@ -8,16 +8,23 @@ export default function StoriesPage() {
   const [targetScope, setTargetScope] = useState("school");
   const [imagePath, setImagePath] = useState("");
   const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [photoReset, setPhotoReset] = useState(0);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    try {
     const response = await fetch("/api/content", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type: "story", body, image_url: imagePath || null, target_scope: targetScope }),
     });
     const data = await response.json();
-    setMessage(response.ok ? "Story posted." : data.error || "Failed");
+    if (response.ok) { setMessage("Story posted."); setBody(""); setImagePath(""); setPhotoReset(value => value + 1); }
+    else setMessage(data.error || "Failed");
+    } finally { setBusy(false); }
   }
 
   return (
@@ -25,13 +32,13 @@ export default function StoriesPage() {
       <h1 className="text-2xl font-bold mb-3">Share a story</h1>
       <form onSubmit={submit} className="card space-y-3">
         <textarea className="input" rows={5} value={body} onChange={(event) => setBody(event.target.value)} placeholder="What happened?" required />
-        <PhotoUploadField label="Add a photo (optional)" onUploaded={path => setImagePath(path)} />
+        <PhotoUploadField resetKey={photoReset} label="Add a photo (optional)" onUploaded={path => setImagePath(path)} />
         <select className="input" value={targetScope} onChange={(event) => setTargetScope(event.target.value)}>
           <option value="school">My school</option>
           <option value="county">My county</option>
           <option value="country">Whole Kenya</option>
         </select>
-        <button className="btn-primary w-full">Post story</button>
+        <button className="btn-primary w-full" disabled={busy}>{busy ? "Posting…" : "Post story"}</button>
         {message && <p className="text-sm">{message}</p>}
       </form>
     </main>

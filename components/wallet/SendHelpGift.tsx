@@ -25,7 +25,7 @@ export default function SendHelpGift({ postId }: { postId: string }) {
   }
 
   async function send(event: React.FormEvent) {
-    event.preventDefault(); setBusy(true); setMessage("");
+    event.preventDefault(); if (busy) return; setBusy(true); setMessage("");
     try {
       const response = await fetch("/api/gifts", {
         method: "POST", headers: { "Content-Type": "application/json" },

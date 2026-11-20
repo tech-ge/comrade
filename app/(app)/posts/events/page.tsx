@@ -7,9 +7,14 @@ export default function EventsPage() {
   const [form, setForm] = useState({ title: "", date: "", time: "", location: "", details: "" });
   const [imagePath, setImagePath] = useState("");
   const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [photoReset, setPhotoReset] = useState(0);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    try {
     const response = await fetch("/api/content", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -22,7 +27,9 @@ export default function EventsPage() {
       }),
     });
     const data = await response.json();
-    setMessage(response.ok ? "Event posted." : data.error || "Failed");
+    if (response.ok) { setMessage("Event posted."); setForm({ title: "", date: "", time: "", location: "", details: "" }); setImagePath(""); setPhotoReset(value => value + 1); }
+    else setMessage(data.error || "Failed");
+    } finally { setBusy(false); }
   }
 
   return (
@@ -34,8 +41,8 @@ export default function EventsPage() {
         <input className="input" type="time" value={form.time} onChange={(event) => setForm({ ...form, time: event.target.value })} required />
         <input className="input" value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} placeholder="Location" required />
         <textarea className="input" rows={4} value={form.details} onChange={(event) => setForm({ ...form, details: event.target.value })} placeholder="More details about the event" required />
-        <PhotoUploadField label="Add an event photo (optional)" onUploaded={path => setImagePath(path)} />
-        <button className="btn-primary w-full">Schedule event</button>
+        <PhotoUploadField resetKey={photoReset} label="Add an event photo (optional)" onUploaded={path => setImagePath(path)} />
+        <button className="btn-primary w-full" disabled={busy}>{busy ? "Posting…" : "Schedule event"}</button>
         {message && <p className="text-sm">{message}</p>}
       </form>
     </main>

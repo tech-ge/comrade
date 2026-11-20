@@ -1,17 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ImagePlus } from "lucide-react";
 import { preparePhoto } from "@/lib/storage/prepare-photo";
 
-export default function PhotoUploadField({ onUploaded, initialUrl, label = "Add a photo" }: {
+export default function PhotoUploadField({ onUploaded, initialUrl, label = "Add a photo", resetKey = 0 }: {
   onUploaded: (path: string, url: string) => void;
   initialUrl?: string;
   label?: string;
+  resetKey?: number;
 }) {
   const [preview, setPreview] = useState(initialUrl || "");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  useEffect(() => { setPreview(initialUrl || ""); setMessage(""); }, [resetKey, initialUrl]);
   async function upload(file?: File) {
     if (!file) return;
     setBusy(true); setMessage("");

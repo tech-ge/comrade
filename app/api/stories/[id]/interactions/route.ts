@@ -15,13 +15,13 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const admin = supabaseAdmin();
   const [{ data: reactions }, commentsResult] = await Promise.all([
     admin.from("story_reactions").select("type, user_id").eq("story_id", params.id),
-    admin.from("comments").select("id,user_id,parent_comment_id,body,created_at", { count: "exact" }).eq("story_id", params.id).order("created_at", { ascending: true }).limit(200),
+    admin.from("comments").select("id,user_id,parent_comment_id,body,image_url,created_at", { count: "exact" }).eq("story_id", params.id).order("created_at", { ascending: true }),
   ]);
   const comments = commentsResult.data || [];
   const authorIds = [...new Set(comments.map(comment => comment.user_id))];
   const { data: authors } = authorIds.length ? await admin.from("users").select("id,full_name,first_name,username,public_id,profile_photo_url,deleted_at").in("id", authorIds) : { data: [] };
   const authorMap = new Map(await Promise.all((authors || []).map(async author => [author.id, { name: author.deleted_at ? "Deleted user" : author.username ? `@${author.username}` : author.public_id || author.full_name || author.first_name || "Comrade", publicId: author.deleted_at ? null : author.public_id, photo: author.deleted_at ? null : await resolvePhotoUrl(author.profile_photo_url) }] as const)));
-  const commentsWithAuthors = comments.map(comment => ({ ...comment, author_name: authorMap.get(comment.user_id)?.name || "Comrade", author_id: authorMap.get(comment.user_id)?.publicId || null, author_photo: authorMap.get(comment.user_id)?.photo || null }));
+  const commentsWithAuthors = await Promise.all(comments.map(async comment => ({ ...comment, image_url: await resolvePhotoUrl(comment.image_url), author_name: authorMap.get(comment.user_id)?.name || "Comrade", author_id: authorMap.get(comment.user_id)?.publicId || null, author_photo: authorMap.get(comment.user_id)?.photo || null })));
   const counts = Object.fromEntries(REACTIONS.map(type => [type, (reactions || []).filter(row => row.type === type).length]));
   const mine = (reactions || []).filter(row => row.user_id === user.id).map(row => row.type);
   return NextResponse.json({ counts, mine, comments: commentsWithAuthors, comment_count: commentsResult.count || 0, owner_id: story.user_id });
@@ -36,6 +36,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const body = await req.json();
   const admin = supabaseAdmin();
+  const { data: member } = await admin.from("users").select("read_only").eq("id", user.id).maybeSingle();
+  if (member?.read_only) return NextResponse.json({ error: "Your account is read-only while reports are reviewed. You can still browse posts." }, { status: 403 });
   if (body.action === "reaction") {
     if (!REACTIONS.includes(body.type)) return NextResponse.json({ error: "Choose a valid reaction." }, { status: 400 });
     const { data: existingRows } = await admin.from("story_reactions").select("id, type").eq("story_id", params.id).eq("user_id", user.id);
@@ -59,7 +61,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   if (body.action === "comment") {
     const text = typeof body.body === "string" ? body.body.trim() : "";
-    if (!text || text.length > 1000) return NextResponse.json({ error: "Reply must be between 1 and 1,000 characters." }, { status: 400 });
+    const imagePath = typeof body.image_url === "string" ? body.image_url : null;
+    if ((!text && !imagePath) || text.length > 1000) return NextResponse.json({ error: "Write a reply or add an image." }, { status: 400 });
+    if (imagePath && !imagePath.startsWith(`${user.id}/`)) return NextResponse.json({ error: "Upload your own image." }, { status: 400 });
     const parentId = typeof body.parent_comment_id === "string" ? body.parent_comment_id : null;
     let notifyUserId = story.user_id;
     if (parentId) {
@@ -67,16 +71,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       if (!parent) return NextResponse.json({ error: "That comment is no longer available." }, { status: 404 });
       notifyUserId = parent.user_id;
     }
-    const { data: comment, error } = await admin.from("comments").insert({ story_id: params.id, user_id: user.id, body: text, parent_comment_id: parentId }).select("id,user_id,parent_comment_id,body,created_at").single();
+    const { data: comment, error } = await admin.from("comments").insert({ story_id: params.id, user_id: user.id, body: text || "", image_url: imagePath, parent_comment_id: parentId }).select("id,user_id,parent_comment_id,body,image_url,created_at").single();
     if (error) return NextResponse.json({ error: "Could not add reply." }, { status: 400 });
-    const { data: author } = await admin.from("users").select("full_name,first_name,username,public_id,profile_photo_url").eq("id", user.id).maybeSingle();
+    const { data: author } = await admin.from("users").select("full_name,first_name,username,public_id,profile_photo_url,deleted_at").eq("id", user.id).maybeSingle();
     if (notifyUserId !== user.id) await admin.from("system_messages").insert({
       user_id: notifyUserId,
       type: "comment",
       title: parentId ? "Someone replied to your comment" : "Someone commented on your post",
       body: `${author?.full_name || author?.first_name || "A comrade"}: ${text.slice(0, 180)}`,
     });
-    return NextResponse.json({ comment: { ...comment, author_name: author?.username ? `@${author.username}` : author?.public_id || author?.full_name || author?.first_name || "Comrade", author_id: author?.public_id || null, author_photo: await resolvePhotoUrl(author?.profile_photo_url) } });
+    return NextResponse.json({ comment: { ...comment, image_url: await resolvePhotoUrl(comment.image_url), author_name: author?.deleted_at ? "Deleted user" : author?.username ? `@${author.username}` : author?.public_id || author?.full_name || author?.first_name || "Comrade", author_id: author?.deleted_at ? null : author?.public_id || null, author_photo: author?.deleted_at ? null : await resolvePhotoUrl(author?.profile_photo_url) } });
   }
   return NextResponse.json({ error: "Unknown action." }, { status: 400 });
 }

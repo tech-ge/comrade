@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BriefcaseBusiness, Heart, House, LifeBuoy, Plus, UserRound } from "lucide-react";
+import { BriefcaseBusiness, Heart, House, LifeBuoy, Plus, UserRound, HandCoins } from "lucide-react";
 import { LogoWordmark } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
@@ -37,6 +37,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
+        <Link href="/sponsor/causes" className={`sidebar-link sidebar-campaign-link${pathname?.startsWith("/sponsor/causes") ? " active" : ""}`}>
+          <HandCoins size={19} /><span className="sidebar-link-copy"><span>Campaigns</span><small>Support a campus cause</small></span>
+        </Link>
         <Link className="sidebar-compose" href="/posts/new">
           <Plus size={19} />
           <span>Create a post</span>

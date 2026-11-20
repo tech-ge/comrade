@@ -33,8 +33,9 @@ export async function POST(req: Request) {
     );
   }
 
-  const { data: profile } = await sb.from("users").select("university_id").eq("id", user.id).single();
+  const { data: profile } = await sb.from("users").select("university_id,read_only").eq("id", user.id).single();
   if (!profile) return NextResponse.json({ error: "Profile incomplete" }, { status: 400 });
+  if (profile.read_only) return NextResponse.json({ error: "Your account is read-only while reports are reviewed." }, { status: 403 });
 
   const { data, error } = await sb.from("gigs").insert({
     user_id: user.id,

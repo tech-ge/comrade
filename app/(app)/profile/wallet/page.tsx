@@ -75,6 +75,7 @@ export default function WalletPage() {
   }, []);
 
   async function deposit() {
+    if (loading) return;
     setLoading(true);
     setMessage("");
     const response = await fetch("/api/wallet/deposit", {
@@ -93,6 +94,7 @@ export default function WalletPage() {
 
   async function withdraw(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     setMessage("");
     const response = await fetch("/api/wallet/withdraw", {

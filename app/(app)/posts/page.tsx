@@ -2,8 +2,8 @@ import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { resolvePhotoUrl } from "@/lib/storage/photo";
-import StoryCard from "@/components/posts/StoryCard";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import SeenStoryFeed from "@/components/posts/SeenStoryFeed";
 
 export const dynamic = "force-dynamic";
 
@@ -12,12 +12,17 @@ export default async function PostsPage() {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: storyRows } = await sb
+  const admin = supabaseAdmin();
+  const { data: viewedRows } = await admin.from("story_views").select("story_id").eq("user_id", user.id);
+  const viewedIds = (viewedRows || []).map(row => row.story_id);
+  let initialQuery = sb
     .from("stories")
     .select("id, user_id, body, image_url, is_event, target_scope, created_at")
     .eq("status", "active")
     .order("created_at", { ascending: false })
-    .limit(30);
+    .limit(10);
+  if (viewedIds.length) initialQuery = initialQuery.not("id", "in", `(${viewedIds.join(",")})`);
+  const { data: storyRows } = await initialQuery;
   const storyIds = (storyRows || []).map(story => story.id);
   let reactionRows: { story_id: string; type: string; user_id: string }[] = [];
   let commentRows: { id: string; story_id: string; user_id: string; parent_comment_id: string | null; body: string; created_at: string }[] = [];
@@ -52,31 +57,21 @@ export default async function PostsPage() {
         <Link href="/posts/stories" className="px-3 py-1 rounded-full bg-brand-gray-light text-sm shrink-0">Stories</Link>
         <Link href="/posts/anonymous" className="px-3 py-1 rounded-full bg-brand-gray-light text-sm shrink-0">Anonymous</Link>
         <Link href="/posts/matched" className="px-3 py-1 rounded-full bg-brand-gray-light text-sm shrink-0">Matched</Link>
+        <Link href="/sponsor/causes" className="px-3 py-1 rounded-full bg-brand-gray-light text-sm shrink-0">Campaigns</Link>
       </div>
       {(stories || []).length === 0 && (
-        <p className="text-brand-gray text-sm">No posts yet. Be the first.</p>
+        <p className="text-brand-gray text-sm">No unseen posts right now. Check again later or search for a post you’ve already seen.</p>
       )}
-      <ul className="feed-list">
-        {stories.map(story => {
+      <SeenStoryFeed initial={stories.map(story => {
           const reactions = reactionRows.filter(row => row.story_id === story.id);
           const storyComments = commentRows.filter(row => row.story_id === story.id).slice(0, 3);
-          return <li key={story.id}><StoryCard
-            story={story}
-            author={authors.get(story.user_id) || {}}
-            counts={{
-              like: reactions.filter(row => row.type === "like").length,
-              love: reactions.filter(row => row.type === "love").length,
-              dislike: reactions.filter(row => row.type === "dislike").length,
-              laugh: reactions.filter(row => row.type === "laugh").length,
-              sad: reactions.filter(row => row.type === "sad").length,
-              angry: reactions.filter(row => row.type === "angry").length,
-              support: reactions.filter(row => row.type === "support").length,
-            }}
-            mine={reactions.filter(row => row.user_id === user.id).map(row => row.type as "like" | "love" | "dislike" | "laugh" | "sad" | "angry" | "support")}
-            initialComments={storyComments.map(comment => ({ ...comment, author_name: commenterNames.get(comment.user_id) || "Comrade" }))}
-          /></li>;
-        })}
-      </ul>
+          return {
+            ...story,
+            author: authors.get(story.user_id) || {},
+            reactions: reactions.map(row => ({ ...row, type: row.type as "like" | "love" | "dislike" | "laugh" | "sad" | "angry" | "support" })),
+            comments: storyComments.map(comment => ({ ...comment, author_name: commenterNames.get(comment.user_id) || "Comrade" })),
+          };
+        })} viewerId={user.id} />
     </main>
   );
 }

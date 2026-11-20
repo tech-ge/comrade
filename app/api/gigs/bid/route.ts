@@ -6,6 +6,8 @@ export async function POST(req: Request) {
   const sb = supabaseServer();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { data: member } = await sb.from("users").select("read_only").eq("id", user.id).maybeSingle();
+  if (member?.read_only) return NextResponse.json({ error: "Your account is read-only while reports are reviewed." }, { status: 403 });
 
   const { gig_id } = await req.json();
   const admin = supabaseAdmin();
