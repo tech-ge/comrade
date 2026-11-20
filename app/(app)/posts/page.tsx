@@ -3,6 +3,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { resolvePhotoUrl } from "@/lib/storage/photo";
 import StoryCard from "@/components/posts/StoryCard";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,7 @@ export default async function PostsPage() {
 
   const { data: storyRows } = await sb
     .from("stories")
-    .select("id, body, image_url, is_event, target_scope, created_at")
+    .select("id, user_id, body, image_url, is_event, target_scope, created_at")
     .eq("status", "active")
     .order("created_at", { ascending: false })
     .limit(30);
@@ -29,8 +30,11 @@ export default async function PostsPage() {
     commentRows = commentsResult.data || [];
   }
   const commenterIds = [...new Set(commentRows.map(row => row.user_id))];
-  const { data: commenters } = commenterIds.length ? await sb.from("users").select("id,full_name,first_name").in("id", commenterIds) : { data: [] };
+  const { data: commenters } = commenterIds.length ? await supabaseAdmin().from("users").select("id,full_name,first_name").in("id", commenterIds) : { data: [] };
   const commenterNames = new Map((commenters || []).map(person => [person.id, person.full_name || person.first_name || "Comrade"]));
+  const authorIds = [...new Set((storyRows || []).map(story => story.user_id))];
+  const { data: authorRows } = authorIds.length ? await supabaseAdmin().from("users").select("id,full_name,first_name,username,public_id,profile_photo_url,deleted_at").in("id", authorIds) : { data: [] };
+  const authors = new Map(await Promise.all((authorRows || []).map(async author => [author.id, { ...author, profile_photo: await resolvePhotoUrl(author.profile_photo_url) }] as const)));
   const stories = await Promise.all((storyRows || []).map(async story => ({ ...story, image_url: await resolvePhotoUrl(story.image_url) })));
 
   return (
@@ -58,6 +62,7 @@ export default async function PostsPage() {
           const storyComments = commentRows.filter(row => row.story_id === story.id).slice(0, 3);
           return <li key={story.id}><StoryCard
             story={story}
+            author={authors.get(story.user_id) || {}}
             counts={{
               like: reactions.filter(row => row.type === "like").length,
               love: reactions.filter(row => row.type === "love").length,

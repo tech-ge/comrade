@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { generatePublicId } from "@/lib/utils/public-id";
 
 class PaystackRequestError extends Error {
   constructor(message: string, readonly outcomeUnknown = false) { super(message); }
@@ -56,6 +57,29 @@ export async function POST(req: Request) {
     ({ error } = await admin.from("users").update({ suspended: true, suspension_reason: String(value || "Suspended by admin") }).eq("id", id));
   } else if (action === "unsuspend_user") {
     ({ error } = await admin.from("users").update({ suspended: false, suspension_reason: null }).eq("id", id));
+  } else if (action === "delete_user") {
+    if (id === user.id) return NextResponse.json({ error: "You cannot delete your own admin account." }, { status: 400 });
+    const { data: target, error: lookupError } = await admin.from("users").select("id,selfie_url,id_photo_url,profile_photo_url,deleted_at").eq("id", id).maybeSingle();
+    if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 500 });
+    if (!target) return NextResponse.json({ error: "User not found." }, { status: 404 });
+    if (target.deleted_at) return NextResponse.json({ error: "This account has already been deleted." }, { status: 409 });
+    const authBan = await admin.auth.admin.updateUserById(id, { email: `deleted+${id}@deleted.invalid`, email_confirm: true, ban_duration: "876000h" });
+    if (authBan.error) return NextResponse.json({ error: "Could not disable this login." }, { status: 500 });
+    if (target.profile_photo_url?.startsWith(`${id}/`)) await admin.storage.from("user-photos").remove([target.profile_photo_url]);
+    const removePublicFile = async (bucket: string, value: string | null) => {
+      if (!value) return;
+      const marker = `/object/public/${bucket}/`;
+      const index = value.indexOf(marker);
+      if (index >= 0) await admin.storage.from(bucket).remove([decodeURIComponent(value.slice(index + marker.length))]);
+    };
+    await Promise.all([removePublicFile("selfies", target.selfie_url), removePublicFile("ids", target.id_photo_url)]);
+    ({ error } = await admin.from("users").update({
+      first_name: "Deleted", full_name: "Deleted user", username: null, public_id: generatePublicId(),
+      adm_number: `REMOVED-${id}`, email: `deleted+${id}@deleted.invalid`, phone: "Removed",
+      course: "Removed", year_of_study: 1, campus: "Removed", home_county_id: null,
+      selfie_url: null, id_photo_url: null, profile_photo_url: null, verified: false,
+      role: "user", suspended: true, suspension_reason: "Account deleted by admin", deleted_at: new Date().toISOString(),
+    }).eq("id", id));
   } else if (action === "set_role") {
     if (!["user", "admin", "sponsor"].includes(String(value))) {
       return NextResponse.json({ error: "Invalid role" }, { status: 400 });

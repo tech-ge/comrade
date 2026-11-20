@@ -2,9 +2,10 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import { MessageCircle, ThumbsUp } from "lucide-react";
+import PostAuthor, { type PostAuthorData } from "@/components/posts/PostAuthor";
 
 type Reaction = "like" | "love" | "dislike" | "laugh" | "sad" | "angry" | "support";
-type Comment = { id: string; user_id?: string; parent_comment_id?: string | null; author_name?: string; body: string; created_at: string };
+type Comment = { id: string; user_id?: string; parent_comment_id?: string | null; author_name?: string; author_id?: string | null; author_photo?: string | null; body: string; created_at: string };
 
 const reactionButtons: { type: Reaction; label: string; emoji: string }[] = [
   { type: "like", label: "Like", emoji: "👍" }, { type: "love", label: "Love", emoji: "❤️" },
@@ -13,8 +14,9 @@ const reactionButtons: { type: Reaction; label: string; emoji: string }[] = [
   { type: "support", label: "Support", emoji: "🤝" },
 ];
 
-export default function StoryCard({ story, counts, mine, initialComments }: {
+export default function StoryCard({ story, counts, mine, initialComments, author }: {
   story: { id: string; body: string; image_url: string | null; is_event: boolean; target_scope: string; created_at: string };
+  author: PostAuthorData;
   counts: Record<Reaction, number>;
   mine: Reaction[];
   initialComments: Comment[];
@@ -81,7 +83,7 @@ export default function StoryCard({ story, counts, mine, initialComments }: {
   return (
     <article className="story-social-card">
       <header className="story-card-header">
-        <div className="story-author-avatar" aria-hidden="true">C</div>
+        <PostAuthor author={author} />
         <div className="min-w-0 flex-1">
           <p className="story-author-name">Campus community</p>
           <p className="story-card-subtitle">{story.target_scope} · {new Date(story.created_at).toLocaleString()}</p>
@@ -103,8 +105,8 @@ export default function StoryCard({ story, counts, mine, initialComments }: {
       </div>
       {showReplies && <section className="story-replies">
         {comments.length > 0 && <ul className="story-reply-list">{comments.filter(comment => !comment.parent_comment_id).map(comment => (
-          <li key={comment.id} className="story-reply"><span className="story-reply-avatar">{(comment.author_name || "C")[0]}</span><div><strong>{comment.author_name || "Comrade"}</strong><p>{comment.body}</p><time>{new Date(comment.created_at).toLocaleString()}</time><button className="story-reply-button" type="button" onClick={() => { setReplyTo(comment); setShowReplies(true); }}>Reply</button>
-            {comments.filter(child => child.parent_comment_id === comment.id).map(child => <div className="story-nested-reply" key={child.id}><strong>{child.author_name || "Comrade"}</strong><p>{child.body}</p><time>{new Date(child.created_at).toLocaleString()}</time></div>)}
+          <li key={comment.id} className="story-reply">{comment.author_photo ? <img className="story-reply-avatar" src={comment.author_photo} alt="" /> : <span className="story-reply-avatar">{(comment.author_name || "C")[0]}</span>}<div><strong>{comment.author_name || "Comrade"}</strong>{comment.author_id && <small className="story-comment-id">Comrade ID {comment.author_id}</small>}<p>{comment.body}</p><time>{new Date(comment.created_at).toLocaleString()}</time><button className="story-reply-button" type="button" onClick={() => { setReplyTo(comment); setShowReplies(true); }}>Reply</button>
+            {comments.filter(child => child.parent_comment_id === comment.id).map(child => <div className="story-nested-reply" key={child.id}><strong>{child.author_name || "Comrade"}</strong>{child.author_id && <small className="story-comment-id">Comrade ID {child.author_id}</small>}<p>{child.body}</p><time>{new Date(child.created_at).toLocaleString()}</time></div>)}
           </div></li>
         ))}</ul>}
         {replyTo && <div className="story-replying-to">Replying to {replyTo.author_name || "Comrade"}<button type="button" onClick={() => setReplyTo(null)}>Cancel</button></div>}

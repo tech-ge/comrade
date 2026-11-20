@@ -5,6 +5,7 @@ import { ArrowDownLeft, ArrowUpRight, Bell, BookOpen, ChevronRight, Heart, Light
 import ProfilePhotoEditor from "@/components/profile/ProfilePhotoEditor";
 import { resolvePhotoUrl } from "@/lib/storage/photo";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import UsernameEditor from "@/components/profile/UsernameEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export default async function ProfilePage() {
 
   const { data: profile } = await sb
     .from("users")
-    .select("public_id, first_name, full_name, course, year_of_study, campus, profile_photo_url, role")
+    .select("public_id, username, first_name, full_name, course, year_of_study, campus, profile_photo_url, role")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -40,6 +41,7 @@ export default async function ProfilePage() {
           <p className="profile-public-id">Comrade ID <span>{profile?.public_id || "000 000 000"}</span></p>
         </div>
       </header>
+      <section className="profile-section"><UsernameEditor current={profile?.username || null} /></section>
 
       <section className="profile-section" aria-labelledby="wallet-heading">
         <div className="profile-section-heading">

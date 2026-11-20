@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { resolvePhotoUrl } from "@/lib/storage/photo";
 
 export async function POST(req: Request) {
   const sb = supabaseServer();
@@ -62,6 +64,18 @@ export async function POST(req: Request) {
       target_county_id: body.target_county_id || null,
     });
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  } else if (body.type === "anonymous_reply") {
+    const text = typeof body.body === "string" ? body.body.trim() : "";
+    const postId = typeof body.post_id === "string" ? body.post_id : "";
+    if (!postId || !text || text.length > 1000) return NextResponse.json({ error: "Write a reply of 1–1,000 characters." }, { status: 400 });
+    const { data: post } = await sb.from("anonymous_posts").select("id,user_id").eq("id", postId).maybeSingle();
+    if (!post) return NextResponse.json({ error: "Anonymous post not found." }, { status: 404 });
+    const { data: reply, error } = await sb.from("anonymous_replies").insert({ post_id: postId, replier_id: user.id, body: text }).select("id,body,created_at").single();
+    if (error) return NextResponse.json({ error: "Could not send anonymous reply." }, { status: 400 });
+    const { data: replyAuthor } = await supabaseAdmin().from("users").select("profile_photo_url").eq("id", user.id).maybeSingle();
+    const replyPhoto = await resolvePhotoUrl(replyAuthor?.profile_photo_url);
+    if (post.user_id !== user.id) await supabaseAdmin().from("system_messages").insert({ user_id: post.user_id, type: "anonymous_reply", title: "New anonymous reply", body: text.slice(0, 180) });
+    return NextResponse.json({ reply: { ...reply, photo: replyPhoto } });
   } else {
     return NextResponse.json({ error: "Unknown content type" }, { status: 400 });
   }

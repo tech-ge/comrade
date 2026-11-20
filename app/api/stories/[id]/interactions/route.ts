@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { resolvePhotoUrl } from "@/lib/storage/photo";
 
 const REACTIONS = ["like", "love", "dislike", "laugh", "sad", "angry", "support"] as const;
 
@@ -18,9 +19,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   ]);
   const comments = commentsResult.data || [];
   const authorIds = [...new Set(comments.map(comment => comment.user_id))];
-  const { data: authors } = authorIds.length ? await admin.from("users").select("id,full_name,first_name").in("id", authorIds) : { data: [] };
-  const names = new Map((authors || []).map(author => [author.id, author.full_name || author.first_name || "Comrade"]));
-  const commentsWithAuthors = comments.map(comment => ({ ...comment, author_name: names.get(comment.user_id) || "Comrade" }));
+  const { data: authors } = authorIds.length ? await admin.from("users").select("id,full_name,first_name,username,public_id,profile_photo_url,deleted_at").in("id", authorIds) : { data: [] };
+  const authorMap = new Map(await Promise.all((authors || []).map(async author => [author.id, { name: author.deleted_at ? "Deleted user" : author.username ? `@${author.username}` : author.public_id || author.full_name || author.first_name || "Comrade", publicId: author.deleted_at ? null : author.public_id, photo: author.deleted_at ? null : await resolvePhotoUrl(author.profile_photo_url) }] as const)));
+  const commentsWithAuthors = comments.map(comment => ({ ...comment, author_name: authorMap.get(comment.user_id)?.name || "Comrade", author_id: authorMap.get(comment.user_id)?.publicId || null, author_photo: authorMap.get(comment.user_id)?.photo || null }));
   const counts = Object.fromEntries(REACTIONS.map(type => [type, (reactions || []).filter(row => row.type === type).length]));
   const mine = (reactions || []).filter(row => row.user_id === user.id).map(row => row.type);
   return NextResponse.json({ counts, mine, comments: commentsWithAuthors, comment_count: commentsResult.count || 0, owner_id: story.user_id });
@@ -68,14 +69,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
     const { data: comment, error } = await admin.from("comments").insert({ story_id: params.id, user_id: user.id, body: text, parent_comment_id: parentId }).select("id,user_id,parent_comment_id,body,created_at").single();
     if (error) return NextResponse.json({ error: "Could not add reply." }, { status: 400 });
-    const { data: author } = await admin.from("users").select("full_name,first_name").eq("id", user.id).maybeSingle();
+    const { data: author } = await admin.from("users").select("full_name,first_name,username,public_id,profile_photo_url").eq("id", user.id).maybeSingle();
     if (notifyUserId !== user.id) await admin.from("system_messages").insert({
       user_id: notifyUserId,
       type: "comment",
       title: parentId ? "Someone replied to your comment" : "Someone commented on your post",
       body: `${author?.full_name || author?.first_name || "A comrade"}: ${text.slice(0, 180)}`,
     });
-    return NextResponse.json({ comment: { ...comment, author_name: author?.full_name || author?.first_name || "Comrade" } });
+    return NextResponse.json({ comment: { ...comment, author_name: author?.username ? `@${author.username}` : author?.public_id || author?.full_name || author?.first_name || "Comrade", author_id: author?.public_id || null, author_photo: await resolvePhotoUrl(author?.profile_photo_url) } });
   }
   return NextResponse.json({ error: "Unknown action." }, { status: 400 });
 }
