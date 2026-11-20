@@ -25,7 +25,7 @@ export default async function AdminContentPage() {
   ]);
   const storyIds = (stories.data || []).map(row => row.id);
   const { data: reactions } = storyIds.length ? await admin.from("story_reactions").select("story_id,type").in("story_id", storyIds) : { data: [] };
-  const itemImages = new Map(await Promise.all([
+  const itemImages = new Map<string, string | null>(await Promise.all([
     ...(stories.data || []).map(async row => [`story-${row.id}`, await resolvePhotoUrl(row.image_url)] as const),
     ...(help.data || []).map(async row => [`help-${row.id}`, await resolvePhotoUrl(row.proof_url)] as const),
     ...(advice.data || []).map(async row => [`advice-${row.id}`, await resolvePhotoUrl(row.image_url)] as const),
