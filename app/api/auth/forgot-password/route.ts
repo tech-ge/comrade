@@ -10,15 +10,18 @@ function digest(code: string) {
 }
 
 export async function POST(req: Request) {
-  let input: { action?: unknown; email?: unknown; code?: unknown; password?: unknown };
-  try { input = await req.json(); } catch { return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 }); }
-  const email = typeof input.email === "string" ? input.email.trim().toLowerCase() : "";
+  let input: { action?: unknown; adm_number?: unknown; code?: unknown; password?: unknown };
+  try { input = await req.json(); } catch { return NextResponse.json({ error: "Enter your admission number." }, { status: 400 }); }
+  const admNumber = typeof input.adm_number === "string" ? input.adm_number.trim() : "";
+  if (!admNumber || admNumber.length > 100) return NextResponse.json({ error: "Enter a valid admission number." }, { status: 400 });
+  const admin = supabaseAdmin();
+  const { data: member } = await admin.from("users").select("id,email").eq("adm_number", admNumber).maybeSingle();
+  const email = member?.email?.trim().toLowerCase() || "";
   if (input.action === "verify") {
     const code = typeof input.code === "string" ? input.code.trim() : "";
     const password = typeof input.password === "string" ? input.password : "";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !/^\d{6}$/.test(code)) return NextResponse.json({ error: "Enter a valid email and 6-digit code." }, { status: 400 });
+    if (!member || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !/^\d{6}$/.test(code)) return NextResponse.json({ error: "That code is invalid or expired. Request a new one." }, { status: 400 });
     if (password.length < 8 || password.length > 128) return NextResponse.json({ error: "Password must be between 8 and 128 characters." }, { status: 400 });
-    const admin = supabaseAdmin();
     const { data: reset } = await admin.from("password_reset_codes").select("id,code_hash,expires_at,attempts").eq("email", email).maybeSingle();
     if (!reset || new Date(reset.expires_at).getTime() < Date.now()) {
       if (reset) await admin.from("password_reset_codes").delete().eq("id", reset.id);
@@ -32,19 +35,14 @@ export async function POST(req: Request) {
       await admin.from("password_reset_codes").update({ attempts }).eq("id", reset.id);
       return NextResponse.json({ error: attempts >= 5 ? "Too many attempts. Request a new code." : "That code is incorrect." }, { status: attempts >= 5 ? 429 : 400 });
     }
-    const { data: member } = await admin.from("users").select("id").eq("email", email).maybeSingle();
-    if (!member) return NextResponse.json({ error: "That code is invalid or expired. Request a new one." }, { status: 400 });
     const { error } = await admin.auth.admin.updateUserById(member.id, { password });
     if (error) return NextResponse.json({ error: "Could not update your password. Try again." }, { status: 400 });
     await admin.from("password_reset_codes").delete().eq("id", reset.id);
     return NextResponse.json({ ok: true });
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
   if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) return NextResponse.json({ error: "Password reset email is temporarily unavailable. Contact support." }, { status: 503 });
 
-  const admin = supabaseAdmin();
-  const { data: member } = await admin.from("users").select("id,email").eq("email", email).maybeSingle();
-  // Keep the response identical for accounts that do not exist.
+  // Keep the response identical for admission numbers that do not exist.
   if (!member) return NextResponse.json({ ok: true });
   const { data: recent } = await admin.from("password_reset_codes").select("created_at").eq("email", email).order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (recent && Date.now() - new Date(recent.created_at).getTime() < 60_000) return NextResponse.json({ ok: true });

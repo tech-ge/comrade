@@ -1,21 +1,12 @@
-import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { POST as forgotPassword } from "@/app/api/auth/forgot-password/route";
 
-export async function POST(req: Request) {
-  const { adm_number } = await req.json();
-  if (!adm_number) return NextResponse.json({ error: "ADM number required" }, { status: 400 });
-
-  const admin = supabaseAdmin();
-  const { data: user } = await admin
-    .from("users")
-    .select("email")
-    .eq("adm_number", String(adm_number))
-    .maybeSingle();
-  if (!user?.email) return NextResponse.json({ error: "ADM number not found" }, { status: 404 });
-
-  const { error } = await admin.auth.resetPasswordForEmail(user.email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/reset-password`,
-  });
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ ok: true });
+// Keep the previous endpoint working while using the admission-number email-code flow.
+export async function POST(request: Request) {
+  let body: { adm_number?: unknown };
+  try { body = await request.json(); } catch { return Response.json({ error: "Enter your admission number." }, { status: 400 }); }
+  return forgotPassword(new Request(request.url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ adm_number: body.adm_number }),
+  }));
 }

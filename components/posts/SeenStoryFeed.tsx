@@ -14,6 +14,8 @@ export default function SeenStoryFeed({ initial, viewerId }: { initial: FeedStor
   const [search, setSearch] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<FeedStory[] | null>(null);
+  const [olderOffset, setOlderOffset] = useState(0);
+  const [hasOlder, setHasOlder] = useState(true);
   const recorded = useRef(new Set<string>());
 
   useEffect(() => {
@@ -45,6 +47,25 @@ export default function SeenStoryFeed({ initial, viewerId }: { initial: FeedStor
     finally { setRefreshing(false); }
   }
 
+  async function loadOlder() {
+    if (refreshing || !hasOlder) return;
+    setRefreshing(true); setMessage("");
+    try {
+      const url = new URL("/api/stories", window.location.origin);
+      url.searchParams.set("older", "1"); url.searchParams.set("offset", String(olderOffset)); url.searchParams.set("limit", "10");
+      const response = await fetch(url);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not load older posts.");
+      const page: FeedStory[] = data.stories || [];
+      const fresh = page.filter(story => !stories.some(existing => existing.id === story.id));
+      setStories(current => [...current, ...fresh]);
+      setOlderOffset(current => current + page.length);
+      setHasOlder(Boolean(data.hasMoreOlder));
+      setMessage(fresh.length ? `${fresh.length} older posts loaded.` : data.hasMoreOlder ? "You’ve reached posts already in your feed. Continue for older posts." : "You’ve reached the oldest posts.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not load older posts."); }
+    finally { setRefreshing(false); }
+  }
+
   async function searchPosts(event: React.FormEvent) {
     event.preventDefault();
     if (!search.trim()) { setSearchResults(null); return; }
@@ -65,9 +86,10 @@ export default function SeenStoryFeed({ initial, viewerId }: { initial: FeedStor
     <form className="feed-search" onSubmit={searchPosts}><input className="input" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search posts, including ones you’ve seen" /><button className="btn-secondary" disabled={searching}>{searching ? "Searching…" : "Search"}</button>{searchResults && <button className="feed-clear-search" type="button" onClick={() => { setSearchResults(null); setSearch(""); setMessage(""); }}>Clear</button>}</form>
     {!searchResults && <div className="feed-new-posts"><button type="button" className="btn-secondary" onClick={() => void loadNew()} disabled={refreshing}>{refreshing ? "Checking…" : "↓ Load more new posts"}</button>{message && <span role="status">{message}</span>}</div>}
     {message && searchResults && <p className="feed-search-message" role="status">{message}</p>}
-    {!(searchResults || stories).length ? <p className="text-brand-gray text-sm">No new posts are available.</p> : <ul className="feed-list">{(searchResults || stories).map(story => {
+    {!(searchResults || stories).length ? <p className="text-brand-gray text-sm">No new posts are available. Browse older posts below.</p> : <ul className="feed-list">{(searchResults || stories).map(story => {
       const counts = Object.fromEntries(("like love dislike laugh sad angry support".split(" ") as Reaction[]).map(type => [type, story.reactions.filter(row => row.type === type).length])) as Record<Reaction, number>;
       return <li key={story.id} data-story-id={story.id}><StoryCard story={story} author={story.author} counts={counts} mine={story.reactions.filter(row => row.user_id === viewerId).map(row => row.type)} initialComments={story.comments.slice(0, 3)} /></li>;
     })}</ul>}
+    {!searchResults && <div className="feed-new-posts feed-older-posts"><button type="button" className="btn-secondary" onClick={() => void loadOlder()} disabled={refreshing || !hasOlder}>{refreshing ? "Loading…" : hasOlder ? "Browse older posts" : "You’ve reached the oldest posts"}</button></div>}
   </>;
 }
