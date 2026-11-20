@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, ArrowLeft, FileWarning, HeartHandshake, LayoutDashboard, MessageSquareText, ReceiptText, UsersRound } from "lucide-react";
+import { Activity, ArrowLeft, FileText, FileWarning, HeartHandshake, LayoutDashboard, MessageSquareText, ReceiptText, UsersRound } from "lucide-react";
 
 const items = [
   { href: "/admin/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/users", label: "Users", icon: UsersRound },
+  { href: "/admin/content", label: "Content", icon: FileText },
   { href: "/admin/reports", label: "Reports", icon: FileWarning },
   { href: "/admin/scan-queue", label: "Moderation", icon: Activity },
   { href: "/admin/transactions", label: "Transactions", icon: ReceiptText },

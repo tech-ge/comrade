@@ -14,18 +14,22 @@ export default async function AdminDashboard() {
   if (profile?.role !== "admin") redirect("/posts");
 
   const admin = supabaseAdmin();
-  const [{ count: users }, { count: reports }, { count: pendingWithdrawals }, { count: causes }, { count: flagged }] = await Promise.all([
+  const [{ count: users }, { count: reports }, { count: pendingWithdrawals }, { count: causes }, { count: flagged }, { count: stories }, { count: gigs }, { count: help }] = await Promise.all([
     admin.from("users").select("id", { count: "exact", head: true }),
     admin.from("reports").select("id", { count: "exact", head: true }),
     admin.from("wallet_transactions").select("id", { count: "exact", head: true }).eq("type", "withdrawal").eq("status", "pending"),
     admin.from("causes").select("id", { count: "exact", head: true }).eq("status", "active"),
     admin.from("moderation_flags").select("id", { count: "exact", head: true }).is("reviewed_at", null),
+    admin.from("stories").select("id", { count: "exact", head: true }).eq("status", "active"),
+    admin.from("gigs").select("id", { count: "exact", head: true }).eq("status", "active"),
+    admin.from("help_posts").select("id", { count: "exact", head: true }).eq("status", "active"),
   ]);
   const cards = [
     { label: "Community members", value: users || 0, icon: UsersRound, href: "/admin/users", tint: "green" },
     { label: "Open reports", value: reports || 0, icon: FileWarning, href: "/admin/reports", tint: "amber" },
     { label: "Needs moderation", value: flagged || 0, icon: Activity, href: "/admin/scan-queue", tint: "rose" },
     { label: "Pending withdrawals", value: pendingWithdrawals || 0, icon: CircleDollarSign, href: "/admin/transactions", tint: "blue" },
+    { label: "Active content", value: (stories || 0) + (gigs || 0) + (help || 0), icon: Activity, href: "/admin/content", tint: "green" },
   ];
 
   return (
@@ -38,6 +42,7 @@ export default async function AdminDashboard() {
         <div className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-eyebrow">ADMIN WORKSPACE</p><h2>Manage the community</h2></div></div><div className="admin-module-grid">
           {[
             ["People & access", "Review members, account status and roles.", "/admin/users", UsersRound],
+            ["Content library", "Edit, hide, restore, or remove member content.", "/admin/content", Activity],
             ["Reports", "Review member reports and follow up.", "/admin/reports", FileWarning],
             ["Moderation queue", "Review content flagged by the community.", "/admin/scan-queue", Activity],
             ["Transactions", "Review wallet activity and withdrawals.", "/admin/transactions", CircleDollarSign],

@@ -933,6 +933,15 @@ html.theme-transitioning * {
 .admin-action.danger:hover { border-color: var(--brand-red); background: var(--brand-red-soft); }
 .admin-action:disabled { opacity: .55; cursor: wait; }
 .admin-action-error { max-width: 12rem; color: var(--brand-red); font-size: .65rem; text-align: right; }
+.admin-content-record { display: grid; gap: .75rem; }
+.admin-content-heading { min-width: 0; }
+.admin-content-preview { max-height: 9rem; overflow: auto; margin: 0; border-left: 2px solid var(--border); padding: .1rem 0 .1rem .8rem; color: var(--text-secondary); font-size: .82rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-content-tools { display: grid; gap: .65rem; }
+.admin-content-tool-buttons { display: flex; flex-wrap: wrap; gap: .5rem; }
+.admin-content-edit { display: grid; gap: .7rem; border-radius: .8rem; padding: .85rem; background: var(--surface-2); }
+.admin-content-edit label { display: grid; gap: .3rem; color: var(--text-secondary); font-size: .74rem; font-weight: 700; }
+.admin-content-edit .input { font-weight: 400; }
+.admin-content-message { color: var(--text-secondary); font-size: .72rem; }
 .admin-type-mark { font-size: 1.3rem; font-weight: 850; }
 .admin-currency-mark { font-size: .65rem; font-weight: 850; }
 .admin-progress { width: min(20rem, 60vw); height: .4rem; margin-top: .65rem; overflow: hidden; border-radius: 999px; background: var(--surface-3); }

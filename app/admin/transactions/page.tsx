@@ -15,9 +15,14 @@ export default async function AdminTransactions() {
   const admin = supabaseAdmin();
   const { data: transactions } = await admin
     .from("wallet_transactions")
-    .select("id, type, amount_ksh, status, paystack_ref, withdrawal_details, withdrawal_transfer_status, withdrawal_error, created_at")
+    .select("id, wallet_id, type, amount_ksh, status, paystack_ref, withdrawal_details, withdrawal_transfer_status, withdrawal_error, created_at")
     .order("created_at", { ascending: false })
     .limit(100);
+  const walletIds = [...new Set((transactions || []).map(item => item.wallet_id))];
+  const { data: wallets } = walletIds.length ? await admin.from("wallets").select("id,user_id").in("id", walletIds) : { data: [] };
+  const userIds = [...new Set((wallets || []).map(wallet => wallet.user_id))];
+  const { data: owners } = userIds.length ? await admin.from("users").select("id,full_name,email,public_id").in("id", userIds) : { data: [] };
+  const ownerByWallet = new Map((wallets || []).map(wallet => [wallet.id, owners?.find(owner => owner.id === wallet.user_id)]));
 
   return (
     <main className="admin-page">
@@ -25,7 +30,7 @@ export default async function AdminTransactions() {
       <div className="admin-record-list">
         {(transactions || []).map((item) => (
           <div className="admin-record" key={item.id}>
-            <div className="admin-record-main"><span className={`admin-stat-icon ${item.type === "withdrawal" ? "blue" : "green"}`}><span className="admin-currency-mark">KSh</span></span><div><div className="admin-badges"><span className="admin-badge neutral">{item.type.replace("_", " ")}</span><span className={`admin-badge ${item.status === "pending" ? "amber" : item.status === "processing" ? "blue" : item.status === "success" ? "green" : "rose"}`}>{item.status}</span>{item.withdrawal_transfer_status && <span className="admin-badge neutral">Paystack: {item.withdrawal_transfer_status}</span>}</div><p className="admin-record-title">Ksh {Number(item.amount_ksh).toLocaleString()}</p><p className="admin-record-meta">{item.paystack_ref || "No reference"} · {new Date(item.created_at).toLocaleString()}</p>
+            <div className="admin-record-main"><span className={`admin-stat-icon ${item.type === "withdrawal" ? "blue" : "green"}`}><span className="admin-currency-mark">KSh</span></span><div><div className="admin-badges"><span className="admin-badge neutral">{item.type.replace("_", " ")}</span><span className={`admin-badge ${item.status === "pending" ? "amber" : item.status === "processing" ? "blue" : item.status === "success" ? "green" : "rose"}`}>{item.status}</span>{item.withdrawal_transfer_status && <span className="admin-badge neutral">Paystack: {item.withdrawal_transfer_status}</span>}</div><p className="admin-record-title">Ksh {Number(item.amount_ksh).toLocaleString()}</p><p className="admin-record-meta">{ownerByWallet.get(item.wallet_id)?.full_name || "Unknown member"} · {ownerByWallet.get(item.wallet_id)?.email || "No email"} · ID {ownerByWallet.get(item.wallet_id)?.public_id || "—"}</p><p className="admin-record-meta">{item.paystack_ref || "No reference"} · {new Date(item.created_at).toLocaleString()}</p>
             {item.withdrawal_details && (
               <p className="admin-record-meta">{item.withdrawal_details.account_name} · {item.withdrawal_details.payout_method === "mpesa" ? `M-Pesa ${item.withdrawal_details.mobile_number}` : `${item.withdrawal_details.bank_name} · ${item.withdrawal_details.account_number}`}</p>
             )}

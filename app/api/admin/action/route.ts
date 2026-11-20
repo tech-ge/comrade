@@ -34,7 +34,7 @@ export async function POST(req: Request) {
   const { data: profile } = await sb.from("users").select("role").eq("id", user.id).maybeSingle();
   if (profile?.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  let body: { action?: unknown; id?: unknown; value?: unknown; title?: unknown; description?: unknown; goal_ksh?: unknown };
+  let body: { action?: unknown; id?: unknown; value?: unknown; title?: unknown; description?: unknown; goal_ksh?: unknown; content_type?: unknown; field1?: unknown; field2?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request" }, { status: 400 }); }
   const { action, id, value } = body;
   if (typeof action !== "string") {
@@ -174,6 +174,50 @@ export async function POST(req: Request) {
     ({ error } = await admin.from("causes").update({ status: value, closed_at: value === "closed" ? new Date().toISOString() : null }).eq("id", id));
   } else if (action === "review_flag") {
     ({ error } = await admin.from("moderation_flags").update({ reviewed_at: new Date().toISOString() }).eq("id", id));
+  } else if (action === "update_content") {
+    const type = String(body.content_type || "");
+    const first = String(body.field1 || "").trim();
+    const second = String(body.field2 || "").trim();
+    const editMap: Record<string, { table: string; first: string; second?: string }> = {
+      story: { table: "stories", first: "body" },
+      anonymous: { table: "anonymous_posts", first: "body" },
+      help: { table: "help_posts", first: "description" },
+      advice: { table: "advice_posts", first: "what_happened", second: "advice_needed" },
+      gig: { table: "gigs", first: "title", second: "description" },
+      couple: { table: "couple_posts", first: "description" },
+      comment: { table: "comments", first: "body" },
+    };
+    const target = editMap[type];
+    if (!target || !first || first.length > 5000 || second.length > 5000 || (target.second && !second)) return NextResponse.json({ error: "Enter valid content before saving." }, { status: 400 });
+    const updates: Record<string, string> = { [target.first]: first };
+    if (target.second) updates[target.second] = second;
+    ({ error } = await admin.from(target.table).update(updates).eq("id", id));
+  } else if (action === "set_content_status") {
+    const type = String(body.content_type || "");
+    const status = String(value || "");
+    const statusMap: Record<string, { table: string; field: string; values: string[] }> = {
+      story: { table: "stories", field: "status", values: ["active", "deleted"] },
+      gig: { table: "gigs", field: "status", values: ["active", "hidden"] },
+      help: { table: "help_posts", field: "status", values: ["active", "closed"] },
+      couple: { table: "couple_posts", field: "status", values: ["active", "closed"] },
+      anonymous: { table: "anonymous_posts", field: "is_flagged", values: ["active", "hidden"] },
+    };
+    const target = statusMap[type];
+    if (!target || !target.values.includes(status)) return NextResponse.json({ error: "This content cannot use that visibility state." }, { status: 400 });
+    const updateValue: string | boolean = type === "anonymous" ? status === "hidden" : status;
+    ({ error } = await admin.from(target.table).update({ [target.field]: updateValue }).eq("id", id));
+  } else if (action === "delete_content") {
+    const type = String(body.content_type || "");
+    const tableByType: Record<string, string> = { story: "stories", anonymous: "anonymous_posts", help: "help_posts", advice: "advice_posts", gig: "gigs", couple: "couple_posts", comment: "comments" };
+    const table = tableByType[type];
+    if (!table) return NextResponse.json({ error: "Unknown content type." }, { status: 400 });
+    ({ error } = await admin.from(table).delete().eq("id", id));
+    if (!error) {
+      await Promise.all([
+        admin.from("reports").delete().eq("target_type", type).eq("target_id", id),
+        admin.from("moderation_flags").delete().eq("target_type", type).eq("target_id", id),
+      ]);
+    }
   } else if (action === "dismiss_report") {
     const { data: report, error: reportError } = await admin.from("reports").select("target_type, target_id").eq("id", id).maybeSingle();
     if (reportError) error = reportError;

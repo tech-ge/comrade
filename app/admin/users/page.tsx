@@ -5,7 +5,7 @@ import { AdminControl } from "@/components/admin/AdminControl";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminUsers() {
+export default async function AdminUsers({ searchParams }: { searchParams?: { q?: string } }) {
   const sb = supabaseServer();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) redirect("/login");
@@ -13,15 +13,19 @@ export default async function AdminUsers() {
   if (profile?.role !== "admin") redirect("/posts");
 
   const admin = supabaseAdmin();
-  const { data: users } = await admin
+  const query = (searchParams?.q || "").trim().slice(0, 80).replace(/[^a-zA-Z0-9@.\-\s]/g, "");
+  let userQuery = admin
     .from("users")
-    .select("id, public_id, full_name, email, adm_number, role, verified, suspended, suspension_reason")
+    .select("id, public_id, full_name, email, adm_number, role, verified, suspended, suspension_reason", { count: "exact" })
     .order("created_at", { ascending: false })
-    .limit(100);
+    .limit(500);
+  if (query) userQuery = userQuery.or(`full_name.ilike.%${query}%,email.ilike.%${query}%,adm_number.ilike.%${query}%,public_id.ilike.%${query}%`);
+  const { data: users, count } = await userQuery;
 
   return (
     <main className="admin-page">
-      <header className="admin-section-header"><div><p className="admin-eyebrow">PEOPLE & ACCESS</p><h1>Users</h1><p className="admin-subtitle">Review accounts, verification and permissions.</p></div><span className="admin-result-count">{users?.length || 0} shown</span></header>
+      <header className="admin-section-header"><div><p className="admin-eyebrow">PEOPLE & ACCESS</p><h1>Users</h1><p className="admin-subtitle">Search member records, verification, account status and permissions.</p></div><span className="admin-result-count">{count || 0} found · {users?.length || 0} shown</span></header>
+      <form className="admin-user-search" role="search"><input className="input" type="search" name="q" defaultValue={query} maxLength={80} placeholder="Search name, email, ADM or member ID" /><button className="admin-action primary">Search users</button></form>
       <div className="admin-record-list">
         {(users || []).map((item) => (
           <div className="admin-record" key={item.id}>

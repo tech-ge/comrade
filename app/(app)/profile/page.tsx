@@ -19,8 +19,8 @@ export default async function ProfilePage() {
     .eq("id", user.id)
     .maybeSingle();
 
-  const displayName = profile?.full_name || profile?.first_name || "Student";
-  const initials = displayName.split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase();
+  const displayName: string = profile?.full_name || profile?.first_name || "Student";
+  const initials = displayName.split(/\s+/).slice(0, 2).map((part: string) => part[0]).join("").toUpperCase();
   const [{ data: wallet }, profilePhoto] = await Promise.all([
     supabaseAdmin().from("wallets").select("balance_ksh, reserved_ksh").eq("user_id", user.id).maybeSingle(),
     resolvePhotoUrl(profile?.profile_photo_url),
