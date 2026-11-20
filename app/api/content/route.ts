@@ -39,7 +39,7 @@ export async function POST(req: Request) {
       university_id: profile.university_id,
       help_type: body.help_type,
       description: body.description,
-      proof_url: body.proof_url || null,
+      proof_url: body.image_url || null,
     });
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   } else if (body.type === "advice") {
@@ -49,6 +49,7 @@ export async function POST(req: Request) {
       university_id: profile.university_id,
       what_happened: body.what_happened,
       advice_needed: body.advice_needed,
+      image_url: body.image_url || null,
     });
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   } else if (body.type === "anonymous") {

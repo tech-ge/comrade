@@ -19,15 +19,18 @@ export default async function PostsPage() {
     .limit(30);
   const storyIds = (storyRows || []).map(story => story.id);
   let reactionRows: { story_id: string; type: string; user_id: string }[] = [];
-  let commentRows: { id: string; story_id: string; body: string; created_at: string }[] = [];
+  let commentRows: { id: string; story_id: string; user_id: string; parent_comment_id: string | null; body: string; created_at: string }[] = [];
   if (storyIds.length) {
     const [reactionsResult, commentsResult] = await Promise.all([
       sb.from("story_reactions").select("story_id, type, user_id").in("story_id", storyIds),
-      sb.from("comments").select("id, story_id, body, created_at").in("story_id", storyIds).order("created_at", { ascending: false }).limit(120),
+      sb.from("comments").select("id, story_id, user_id, parent_comment_id, body, created_at").in("story_id", storyIds).order("created_at", { ascending: true }).limit(300),
     ]);
     reactionRows = reactionsResult.data || [];
     commentRows = commentsResult.data || [];
   }
+  const commenterIds = [...new Set(commentRows.map(row => row.user_id))];
+  const { data: commenters } = commenterIds.length ? await sb.from("users").select("id,full_name,first_name").in("id", commenterIds) : { data: [] };
+  const commenterNames = new Map((commenters || []).map(person => [person.id, person.full_name || person.first_name || "Comrade"]));
   const stories = await Promise.all((storyRows || []).map(async story => ({ ...story, image_url: await resolvePhotoUrl(story.image_url) })));
 
   return (
@@ -58,10 +61,14 @@ export default async function PostsPage() {
             counts={{
               like: reactions.filter(row => row.type === "like").length,
               love: reactions.filter(row => row.type === "love").length,
+              dislike: reactions.filter(row => row.type === "dislike").length,
+              laugh: reactions.filter(row => row.type === "laugh").length,
+              sad: reactions.filter(row => row.type === "sad").length,
+              angry: reactions.filter(row => row.type === "angry").length,
               support: reactions.filter(row => row.type === "support").length,
             }}
-            mine={reactions.filter(row => row.user_id === user.id).map(row => row.type as "like" | "love" | "support")}
-            initialComments={storyComments}
+            mine={reactions.filter(row => row.user_id === user.id).map(row => row.type as "like" | "love" | "dislike" | "laugh" | "sad" | "angry" | "support")}
+            initialComments={storyComments.map(comment => ({ ...comment, author_name: commenterNames.get(comment.user_id) || "Comrade" }))}
           /></li>;
         })}
       </ul>

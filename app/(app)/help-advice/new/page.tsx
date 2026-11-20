@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import PhotoUploadField from "@/components/ui/PhotoUploadField";
 
 export default function NewHelpAdvicePage() {
   const [mode, setMode] = useState("help");
@@ -8,13 +9,14 @@ export default function NewHelpAdvicePage() {
   const [description, setDescription] = useState("");
   const [whatHappened, setWhatHappened] = useState("");
   const [adviceNeeded, setAdviceNeeded] = useState("");
+  const [imagePath, setImagePath] = useState("");
   const [message, setMessage] = useState("");
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     const body = mode === "help"
-      ? { type: "help", help_type: helpType, description }
-      : { type: "advice", what_happened: whatHappened, advice_needed: adviceNeeded };
+      ? { type: "help", help_type: helpType, description, image_url: imagePath || null }
+      : { type: "advice", what_happened: whatHappened, advice_needed: adviceNeeded, image_url: imagePath || null };
     const response = await fetch("/api/content", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -43,14 +45,21 @@ export default function NewHelpAdvicePage() {
               <option value="mental_health">Mental health</option>
               <option value="other">Other</option>
             </select>
-            <textarea className="input" rows={5} value={description} onChange={(event) => setDescription(event.target.value)} required />
+            <label className="block text-sm font-semibold">Describe what you need and any useful details
+              <textarea className="input mt-1" rows={5} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Explain what happened, what support would help, and any relevant details." required maxLength={3000} />
+            </label>
           </>
         ) : (
           <>
-            <textarea className="input" rows={4} value={whatHappened} onChange={(event) => setWhatHappened(event.target.value)} placeholder="What happened?" required />
-            <textarea className="input" rows={4} value={adviceNeeded} onChange={(event) => setAdviceNeeded(event.target.value)} placeholder="What advice do you need?" required />
+            <label className="block text-sm font-semibold">What happened?
+              <textarea className="input mt-1" rows={4} value={whatHappened} onChange={(event) => setWhatHappened(event.target.value)} placeholder="Share enough detail for someone to understand the situation." required maxLength={3000} />
+            </label>
+            <label className="block text-sm font-semibold">What advice would help?
+              <textarea className="input mt-1" rows={4} value={adviceNeeded} onChange={(event) => setAdviceNeeded(event.target.value)} placeholder="Tell people what kind of guidance or perspective you need." required maxLength={2000} />
+            </label>
           </>
         )}
+        <PhotoUploadField label="Add a photo (optional)" onUploaded={path => setImagePath(path)} />
         <button className="btn-primary w-full">Publish</button>
         {message && <p className="text-sm">{message}</p>}
       </form>

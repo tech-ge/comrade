@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ImagePlus } from "lucide-react";
+import { preparePhoto } from "@/lib/storage/prepare-photo";
 
 export default function PhotoUploadField({ onUploaded, initialUrl, label = "Add a photo" }: {
   onUploaded: (path: string, url: string) => void;
@@ -14,14 +15,16 @@ export default function PhotoUploadField({ onUploaded, initialUrl, label = "Add 
   async function upload(file?: File) {
     if (!file) return;
     setBusy(true); setMessage("");
-    const form = new FormData(); form.append("photo", file);
     try {
+      const photo = await preparePhoto(file);
+      if (photo.size > 5 * 1024 * 1024) throw new Error("This image is still over 5 MB. Choose a smaller photo.");
+      const form = new FormData(); form.append("photo", photo);
       const response = await fetch("/api/uploads/photo", { method: "POST", body: form });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Upload failed");
       setPreview(data.url); onUploaded(data.path, data.url);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Upload failed. Try again.");
+      setMessage(error instanceof Error ? error.message : "Upload failed. Check your connection and try again.");
     } finally { setBusy(false); }
   }
   return (

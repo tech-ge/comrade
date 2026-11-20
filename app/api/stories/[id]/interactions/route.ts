@@ -2,31 +2,35 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
-const REACTIONS = ["like", "love", "support"] as const;
+const REACTIONS = ["like", "love", "dislike", "laugh", "sad", "angry", "support"] as const;
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const sb = supabaseServer();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { data: story } = await sb.from("stories").select("id").eq("id", params.id).single();
+  const { data: story } = await sb.from("stories").select("id,user_id").eq("id", params.id).single();
   if (!story) return NextResponse.json({ error: "Post not found" }, { status: 404 });
 
   const admin = supabaseAdmin();
   const [{ data: reactions }, commentsResult] = await Promise.all([
     admin.from("story_reactions").select("type, user_id").eq("story_id", params.id),
-    admin.from("comments").select("id, body, created_at", { count: "exact" }).eq("story_id", params.id).order("created_at", { ascending: false }).limit(50),
+    admin.from("comments").select("id,user_id,parent_comment_id,body,created_at", { count: "exact" }).eq("story_id", params.id).order("created_at", { ascending: true }).limit(200),
   ]);
-  const comments = commentsResult.data;
+  const comments = commentsResult.data || [];
+  const authorIds = [...new Set(comments.map(comment => comment.user_id))];
+  const { data: authors } = authorIds.length ? await admin.from("users").select("id,full_name,first_name").in("id", authorIds) : { data: [] };
+  const names = new Map((authors || []).map(author => [author.id, author.full_name || author.first_name || "Comrade"]));
+  const commentsWithAuthors = comments.map(comment => ({ ...comment, author_name: names.get(comment.user_id) || "Comrade" }));
   const counts = Object.fromEntries(REACTIONS.map(type => [type, (reactions || []).filter(row => row.type === type).length]));
   const mine = (reactions || []).filter(row => row.user_id === user.id).map(row => row.type);
-  return NextResponse.json({ counts, mine, comments: comments || [], comment_count: commentsResult.count || 0 });
+  return NextResponse.json({ counts, mine, comments: commentsWithAuthors, comment_count: commentsResult.count || 0, owner_id: story.user_id });
 }
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const sb = supabaseServer();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { data: story } = await sb.from("stories").select("id").eq("id", params.id).single();
+  const { data: story } = await sb.from("stories").select("id,user_id,body").eq("id", params.id).single();
   if (!story) return NextResponse.json({ error: "Post not found" }, { status: 404 });
 
   const body = await req.json();
@@ -55,9 +59,23 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (body.action === "comment") {
     const text = typeof body.body === "string" ? body.body.trim() : "";
     if (!text || text.length > 1000) return NextResponse.json({ error: "Reply must be between 1 and 1,000 characters." }, { status: 400 });
-    const { data: comment, error } = await admin.from("comments").insert({ story_id: params.id, user_id: user.id, body: text }).select("id, body, created_at").single();
+    const parentId = typeof body.parent_comment_id === "string" ? body.parent_comment_id : null;
+    let notifyUserId = story.user_id;
+    if (parentId) {
+      const { data: parent } = await admin.from("comments").select("id,user_id,story_id").eq("id", parentId).eq("story_id", params.id).maybeSingle();
+      if (!parent) return NextResponse.json({ error: "That comment is no longer available." }, { status: 404 });
+      notifyUserId = parent.user_id;
+    }
+    const { data: comment, error } = await admin.from("comments").insert({ story_id: params.id, user_id: user.id, body: text, parent_comment_id: parentId }).select("id,user_id,parent_comment_id,body,created_at").single();
     if (error) return NextResponse.json({ error: "Could not add reply." }, { status: 400 });
-    return NextResponse.json({ comment });
+    const { data: author } = await admin.from("users").select("full_name,first_name").eq("id", user.id).maybeSingle();
+    if (notifyUserId !== user.id) await admin.from("system_messages").insert({
+      user_id: notifyUserId,
+      type: "comment",
+      title: parentId ? "Someone replied to your comment" : "Someone commented on your post",
+      body: `${author?.full_name || author?.first_name || "A comrade"}: ${text.slice(0, 180)}`,
+    });
+    return NextResponse.json({ comment: { ...comment, author_name: author?.full_name || author?.first_name || "Comrade" } });
   }
   return NextResponse.json({ error: "Unknown action." }, { status: 400 });
 }

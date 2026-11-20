@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  if (body.photo_path && (typeof body.photo_path !== "string" || !body.photo_path.startsWith(`${user.id}/`))) return NextResponse.json({ error: "Upload your own photo first." }, { status: 400 });
+  if (typeof body.photo_path !== "string" || !body.photo_path.startsWith(`${user.id}/`)) return NextResponse.json({ error: "Upload a photo before creating a couple search." }, { status: 400 });
   if (typeof body.description !== "string" || !body.description.trim()) return NextResponse.json({ error: "Describe who you are hoping to meet." }, { status: 400 });
   if (!["country", "county", "school"].includes(body.target_scope)) return NextResponse.json({ error: "Choose a valid audience." }, { status: 400 });
   const { data: profile } = await sb.from("users").select("university_id, gender").eq("id", user.id).single();

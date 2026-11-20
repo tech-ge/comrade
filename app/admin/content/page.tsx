@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import AdminContentTools from "@/components/admin/AdminContentTools";
+import { resolvePhotoUrl } from "@/lib/storage/photo";
 
 export const dynamic = "force-dynamic";
 
@@ -14,14 +15,22 @@ export default async function AdminContentPage() {
 
   const admin = supabaseAdmin();
   const [stories, anonymous, help, advice, gigs, couples, comments] = await Promise.all([
-    admin.from("stories").select("id,user_id,body,status,is_event,created_at").order("created_at", { ascending: false }).limit(300),
+    admin.from("stories").select("id,user_id,body,image_url,status,is_event,created_at").order("created_at", { ascending: false }).limit(300),
     admin.from("anonymous_posts").select("id,user_id,body,is_flagged,created_at").order("created_at", { ascending: false }).limit(300),
-    admin.from("help_posts").select("id,user_id,help_type,description,status,created_at").order("created_at", { ascending: false }).limit(300),
-    admin.from("advice_posts").select("id,user_id,what_happened,advice_needed,created_at").order("created_at", { ascending: false }).limit(300),
+    admin.from("help_posts").select("id,user_id,help_type,description,proof_url,status,created_at").order("created_at", { ascending: false }).limit(300),
+    admin.from("advice_posts").select("id,user_id,what_happened,advice_needed,image_url,created_at").order("created_at", { ascending: false }).limit(300),
     admin.from("gigs").select("id,user_id,title,description,status,created_at").order("created_at", { ascending: false }).limit(300),
-    admin.from("couple_posts").select("id,user_id,description,status,created_at").order("created_at", { ascending: false }).limit(300),
-    admin.from("comments").select("id,user_id,body,created_at").order("created_at", { ascending: false }).limit(300),
+    admin.from("couple_posts").select("id,user_id,description,photo_url,status,created_at").order("created_at", { ascending: false }).limit(300),
+    admin.from("comments").select("id,user_id,story_id,parent_comment_id,body,created_at").order("created_at", { ascending: false }).limit(500),
   ]);
+  const storyIds = (stories.data || []).map(row => row.id);
+  const { data: reactions } = storyIds.length ? await admin.from("story_reactions").select("story_id,type").in("story_id", storyIds) : { data: [] };
+  const itemImages = new Map(await Promise.all([
+    ...(stories.data || []).map(async row => [`story-${row.id}`, await resolvePhotoUrl(row.image_url)] as const),
+    ...(help.data || []).map(async row => [`help-${row.id}`, await resolvePhotoUrl(row.proof_url)] as const),
+    ...(advice.data || []).map(async row => [`advice-${row.id}`, await resolvePhotoUrl(row.image_url)] as const),
+    ...(couples.data || []).map(async row => [`couple-${row.id}`, row.photo_url?.startsWith("/") ? row.photo_url : await resolvePhotoUrl(row.photo_url)] as const),
+  ]));
 
   const items = [
     ...(stories.data || []).map(row => ({ type: "story", id: row.id, userId: row.user_id, title: row.is_event ? "Event" : "Post", body: row.body, second: "", status: row.status === "active" ? "active" : ["deleted", "flagged"].includes(row.status) ? "hidden" : null, createdAt: row.created_at })),
@@ -46,6 +55,18 @@ export default async function AdminContentPage() {
           return <article className="admin-record admin-content-record" key={`${item.type}-${item.id}`}>
             <div className="admin-content-heading"><div><div className="admin-badges"><span className="admin-badge neutral">{item.type}</span>{item.status && <span className={`admin-badge ${item.status === "active" ? "green" : "amber"}`}>{item.status}</span>}</div><p className="admin-record-title">{item.title}</p><p className="admin-record-meta">{author?.name || "Unknown member"} · ID {author?.publicId || "—"} · {new Date(item.createdAt).toLocaleString()}</p></div></div>
             <p className="admin-content-preview">{item.body}{item.second && item.second !== item.body ? `\n\n${item.second}` : ""}</p>
+            {itemImages.get(`${item.type}-${item.id}`) && <img className="admin-story-image" src={itemImages.get(`${item.type}-${item.id}`) || ""} alt={`${item.type} attachment`} />}
+            {item.type === "story" && <details className="admin-post-detail"><summary>View post, comments & reactions</summary>
+              <div className="admin-reaction-summary">{["like", "love", "dislike", "laugh", "sad", "angry", "support"].map(type => {
+                const emoji: Record<string, string> = { like: "👍", love: "❤️", dislike: "👎", laugh: "😂", sad: "😢", angry: "😡", support: "🤝" };
+                const count = (reactions || []).filter(reaction => reaction.story_id === item.id && reaction.type === type).length;
+                return <span key={type}>{emoji[type]} {count}</span>;
+              })}</div>
+              <div className="admin-story-comments">{(comments.data || []).filter(comment => comment.story_id === item.id).map(comment => {
+                const commentAuthor = authorNames.get(comment.user_id);
+                return <div className="admin-story-comment" key={comment.id}><p><strong>{commentAuthor?.name || "Member"}</strong>{comment.parent_comment_id && <small> · reply</small>}<br />{comment.body}</p><AdminContentTools type="comment" id={comment.id} field1={comment.body} /></div>;
+              })}{!(comments.data || []).some(comment => comment.story_id === item.id) && <p className="admin-subtitle">No comments yet.</p>}</div>
+            </details>}
             <AdminContentTools type={item.type} id={item.id} field1={item.type === "gig" ? item.title : item.body} field2={item.type === "advice" ? item.second : item.type === "gig" ? item.second : ""} status={item.status} />
           </article>;
         })}

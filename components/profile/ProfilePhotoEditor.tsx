@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Camera } from "lucide-react";
+import { preparePhoto } from "@/lib/storage/prepare-photo";
 
 export default function ProfilePhotoEditor({ currentUrl, initials }: { currentUrl: string | null; initials: string }) {
   const [preview, setPreview] = useState(currentUrl || "");
@@ -12,9 +13,11 @@ export default function ProfilePhotoEditor({ currentUrl, initials }: { currentUr
     if (!file) return;
     setBusy(true);
     setMessage("");
-    const form = new FormData();
-    form.append("photo", file);
     try {
+      const photo = await preparePhoto(file);
+      if (photo.size > 5 * 1024 * 1024) throw new Error("This image is still over 5 MB. Choose a smaller photo.");
+      const form = new FormData();
+      form.append("photo", photo);
       const uploadResponse = await fetch("/api/uploads/photo", { method: "POST", body: form });
       const uploaded = await uploadResponse.json();
       if (!uploadResponse.ok) throw new Error(uploaded.error || "Upload failed");

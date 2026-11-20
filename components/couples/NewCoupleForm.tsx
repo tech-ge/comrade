@@ -37,7 +37,8 @@ export default function NewCoupleForm({ gender, counties, homeCountyId }: { gend
         <label className="block text-sm font-semibold">About you and who you hope to meet
           <textarea className="input mt-1" rows={4} placeholder="Share a little about yourself and the kind of connection you want" value={form.description} onChange={event => setForm({ ...form, description: event.target.value })} required maxLength={1000} />
         </label>
-        <PhotoUploadField label="Add a photo (optional)" onUploaded={path => setPhotoPath(path)} />
+        <PhotoUploadField label="Add your required photo" onUploaded={path => setPhotoPath(path)} />
+        {!photoPath && <p className="form-helper-error">Upload a photo before posting your couple search.</p>}
         <label className="block text-sm font-semibold">Who can see this search?
           <select className="input mt-1" value={form.target_scope} onChange={event => setForm({ ...form, target_scope: event.target.value })}>
             <option value="school">People at my school</option>
@@ -51,7 +52,7 @@ export default function NewCoupleForm({ gender, counties, homeCountyId }: { gend
             {counties.map(county => <option key={county.id} value={county.id}>{county.name}</option>)}
           </select>
         </label>}
-        <button className="btn-primary w-full" disabled={busy}>{busy ? "Posting…" : "Post my search"}</button>
+        <button className="btn-primary w-full" disabled={busy || !photoPath}>{busy ? "Posting…" : "Post my search"}</button>
         {msg && <p className="text-sm" role="status">{msg}</p>}
       </form>
     </main>
