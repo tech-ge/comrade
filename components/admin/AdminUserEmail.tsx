@@ -10,13 +10,20 @@ export default function AdminUserEmail({ userId, email }: { userId: string; emai
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  async function readResponse(response: Response): Promise<{ error?: string }> {
+    const text = await response.text();
+    try { return JSON.parse(text) as { error?: string }; }
+    catch {
+      throw new Error(`The email request returned an invalid server response (HTTP ${response.status}). Check the deployment logs and Resend email settings.`);
+    }
+  }
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (busy) return;
     setBusy(true); setStatus("");
     try {
       const response = await fetch("/api/admin/action", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "email_user", id: userId, subject, message }) });
-      const data = await response.json();
+      const data = await readResponse(response);
       if (!response.ok) throw new Error(data.error || "Email could not be sent.");
       setSubject(""); setMessage(""); setStatus("Email sent."); setOpen(false); router.refresh();
     } catch (error) { setStatus(error instanceof Error ? error.message : "Email could not be sent."); }

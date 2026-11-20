@@ -118,9 +118,9 @@ export async function POST(req: Request) {
     if (!recipient?.email || recipient.deleted_at) return NextResponse.json({ error: "This user does not have an active email address." }, { status: 404 });
     try {
       const result = await sendAdminEmail(recipient.email, subject, message);
-      if (result.error) return NextResponse.json({ error: "Email could not be sent. Check the email service configuration." }, { status: 502 });
+      if (result.error) return NextResponse.json({ error: "Email could not be sent. Check RESEND_API_KEY, RESEND_FROM_EMAIL, and that the sender domain is verified in Resend." }, { status: 502 });
     } catch {
-      return NextResponse.json({ error: "Email could not be sent. Check the email service configuration." }, { status: 502 });
+      return NextResponse.json({ error: "Email could not be sent. Check RESEND_API_KEY, RESEND_FROM_EMAIL, and that the sender domain is verified in Resend." }, { status: 502 });
     }
     await admin.from("audit_log").insert({ actor_id: user.id, action: "admin_email_sent", target_type: "user", target_id: id, meta: { subject } });
   } else if (action === "reply_suggestion") {

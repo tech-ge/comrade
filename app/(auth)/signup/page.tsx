@@ -6,12 +6,19 @@ import { LogoWordmark } from "@/components/brand/Logo";
 import { Camera, Check } from "lucide-react";
 
 type Step = 1 | 2 | 3;
+type ApiResult = { error?: string };
+
+async function readApiResult(response: Response): Promise<ApiResult> {
+  try { return await response.json() as ApiResult; }
+  catch { return { error: `The server returned an invalid response (HTTP ${response.status}). Please try again.` }; }
+}
 
 export default function SignupPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>(1);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
   const [counties, setCounties] = useState<Array<{ id: number; name: string }>>([]);
   const [universities, setUniversities] = useState<Array<{ id: string; name: string }>>([]);
   useEffect(() => {
@@ -59,26 +66,30 @@ export default function SignupPage() {
     fd.append("email", email);
     fd.append("university_id", universityId);
     fd.append("selfie", selfie);
-    const res = await fetch("/api/auth/init-signup", { method: "POST", body: fd });
-    const data = await res.json();
-    setLoading(false);
-    if (!res.ok) { setError(data.error || "Signup failed"); return; }
-    setStep(2);
+    try {
+      const res = await fetch("/api/auth/init-signup", { method: "POST", body: fd });
+      const data = await readApiResult(res);
+      if (!res.ok) { setError(data.error || "Signup failed"); return; }
+      setStep(2);
+    } catch { setError("Could not reach the server. Check your connection and try again."); }
+    finally { setLoading(false); }
   }
 
   // ---- Step 2: OTP ----
   async function step2(e: React.FormEvent) {
     e.preventDefault();
     setError(""); setLoading(true);
-    const res = await fetch("/api/auth/verify-otp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, otp }),
-    });
-    const data = await res.json();
-    setLoading(false);
-    if (!res.ok) { setError(data.error || "Invalid code"); return; }
-    setStep(3);
+    try {
+      const res = await fetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, otp }),
+      });
+      const data = await readApiResult(res);
+      if (!res.ok) { setError(data.error || "Invalid code"); return; }
+      setStep(3);
+    } catch { setError("Could not reach the server. Check your connection and try again."); }
+    finally { setLoading(false); }
   }
 
   // ---- Step 3: finish ----
@@ -98,11 +109,13 @@ export default function SignupPage() {
     fd.append("full_name", fullName);
     fd.append("university_id", universityId);
 
-    const res = await fetch("/api/auth/finish-signup", { method: "POST", body: fd });
-    const data = await res.json();
-    setLoading(false);
-    if (!res.ok) { setError(data.error || "Setup failed"); return; }
-    router.push("/posts");
+    try {
+      const res = await fetch("/api/auth/finish-signup", { method: "POST", body: fd });
+      const data = await readApiResult(res);
+      if (!res.ok) { setError(data.error || "Setup failed"); return; }
+      router.push("/posts");
+    } catch { setError("Could not reach the server. Check your connection and try again."); }
+    finally { setLoading(false); }
   }
 
   return (
@@ -187,6 +200,9 @@ export default function SignupPage() {
             <input
               className="input text-center text-2xl tracking-widest font-mono"
               maxLength={6}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]{6}"
               value={otp}
               onChange={e => setOtp(e.target.value.replace(/\D/g, ""))}
               required
@@ -196,13 +212,17 @@ export default function SignupPage() {
             <button className="btn-primary w-full" disabled={loading}>
               {loading ? "Verifying…" : "Verify"}
             </button>
-            <button type="button" className="text-sm text-brand-green text-center w-full" onClick={async () => {
-              await fetch("/api/auth/resend-otp", {
-                method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email }),
-              });
+            <button type="button" disabled={resending || loading} className="text-sm text-brand-green text-center w-full disabled:opacity-60" onClick={async () => {
+              setError(""); setResending(true);
+              try {
+                const response = await fetch("/api/auth/resend-otp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
+                const data = await readApiResult(response);
+                if (!response.ok) throw new Error(data.error || "Could not resend code.");
+                setError("A new code has been sent. Check your email.");
+              } catch (err) { setError(err instanceof Error ? err.message : "Could not resend code."); }
+              finally { setResending(false); }
             }}>
-              Didn't receive? Resend
+              {resending ? "Sending…" : "Didn't receive? Resend"}
             </button>
           </form>
         </>

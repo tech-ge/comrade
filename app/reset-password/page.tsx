@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { useState } from "react";
 
+async function readApiResult(response: Response): Promise<{ error?: string }> {
+  try { return await response.json() as { error?: string }; }
+  catch { return { error: `The server returned an invalid response (HTTP ${response.status}). Please try again.` }; }
+}
+
 export default function ResetPasswordPage() {
   const [admNumber, setAdmNumber] = useState("");
   const [code, setCode] = useState("");
@@ -18,7 +23,7 @@ export default function ResetPasswordPage() {
     setBusy(true); setMessage("");
     try {
       const response = await fetch("/api/auth/forgot-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ adm_number: admNumber }) });
-      const data = await response.json();
+      const data = await readApiResult(response);
       if (!response.ok) throw new Error(data.error || "Could not request a reset code.");
       setSent(true); setMessage("If the admission number matches an account, a six-digit code has been sent to its registered email address.");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not request a reset code."); }
@@ -32,7 +37,7 @@ export default function ResetPasswordPage() {
     setBusy(true); setMessage("");
     try {
       const response = await fetch("/api/auth/forgot-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "verify", adm_number: admNumber, code, password }) });
-      const data = await response.json();
+      const data = await readApiResult(response);
       if (!response.ok) throw new Error(data.error || "Could not reset password.");
       setMessage("Password updated. You can now log in."); setCode(""); setPassword(""); setConfirmPassword("");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not reset password."); }
